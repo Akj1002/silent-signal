@@ -1,0 +1,40 @@
+:root {
+  --aura-primary: #6366f1;
+  --aura-bg: radial-gradient(at 0% 0%, #f1f5f9 0, transparent 50%), radial-gradient(at 100% 0%, #f5f3ff 0, transparent 50%);
+  --rose: #fff1f2; --cyan: #ecfeff; --purple: #f5f3ff;
+}
+
+body, html { margin: 0; padding: 0; height: 100vh; width: 100vw; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; background-image: var(--aura-bg); }
+.aura-platform { height: 100vh; display: flex; flex-direction: row; }
+
+/* SIDEBAR: PINNED */
+.aura-sidebar { width: 280px; min-width: 280px; background: rgba(255,255,255,0.4); backdrop-filter: blur(25px); border-right: 1px solid #e2e8f0; padding: 40px 24px; display: flex; flex-direction: column; }
+.nav-item-pro { display: flex; align-items: center; gap: 15px; padding: 15px 20px; border-radius: 16px; cursor: pointer; color: #64748b; font-weight: 600; margin-bottom: 8px; transition: 0.3s; }
+.nav-item-pro.active { background: white; color: var(--aura-primary); box-shadow: 0 10px 30px rgba(0,0,0,0.04); }
+
+/* MAIN VIEWPORT */
+.aura-viewport { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.aura-header { height: 80px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; background: rgba(255,255,255,0.4); }
+.header-avatar-fix { width: 42px !important; height: 42px !important; border-radius: 12px; border: 2px solid var(--aura-primary); object-fit: cover; }
+
+.aura-stage { flex: 1; padding: 45px; overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; padding-bottom: 120px; }
+
+/* STAT CARDS */
+.aura-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; width: 100%; margin-bottom: 40px; }
+.aura-stat-card { padding: 35px; border-radius: 32px; background: white; box-shadow: 0 15px 40px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 10px; }
+.aura-stat-card strong { font-size: 2.8rem; font-weight: 900; letter-spacing: -2px; }
+
+/* CHAT UI */
+.neural-orb-pro { width: 100px; height: 100px; border-radius: 50%; background: var(--aura-primary); box-shadow: 0 0 50px rgba(99,102,241,0.4); animation: pulse 4s infinite alternate; margin-bottom: 30px; }
+@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+.bubble-user { align-self: flex-end; background: var(--aura-primary); color: white; padding: 12px 20px; border-radius: 20px 20px 0 20px; margin-bottom: 10px; }
+.bubble-bot { align-self: flex-start; background: white; padding: 12px 20px; border-radius: 20px 20px 20px 0; border: 1px solid #e2e8f0; margin-bottom: 10px; }
+
+/* PERSISTENT PLAYER */
+.aura-player { position: fixed; bottom: 25px; left: 320px; right: 35px; height: 90px; background: rgba(255,255,255,0.9); backdrop-filter: blur(25px); border-radius: 35px; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; box-shadow: 0 25px 60px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.5); z-index: 1000; }
+
+/* SCANNER */
+.aura-scanner { height: 350px; width: 100%; max-width: 600px; background: #000; border-radius: 40px; overflow: hidden; border: 6px solid white; margin-top: 25px; }
+
+.fade-in { animation: fadeIn 0.8s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }

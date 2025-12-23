@@ -1,0 +1,16 @@
+# Python local environment
+venv/
+__pycache__/
+*.pyc
+
+# Local Database
+backend/silent_signal.db
+
+# React dependencies
+node_modules/
+build/
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
