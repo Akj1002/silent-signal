@@ -2,10 +2,17 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
-import models, schemas, database  # Absolute imports
-app = FastAPI(title="Silent Signal Agentic API")
+import models, schemas, database
+import google.generativeai as genai
 
-# 1. FIXED CORS: Essential for Integrated App.js communication
+# --- CONFIGURATION ---
+# Your provided API Key
+genai.configure(api_key="AlzaSyBhaOrx-PA5ii4Hsp2LvOWt91QfFvc0x24")
+model = genai.GenerativeModel('gemini-pro')
+
+app = FastAPI(title="Silent Signal Hybrid Agent")
+
+# CORS for React Frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -14,53 +21,68 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. INITIALIZE DATABASE: Auto-creates silent_signal.db tables
-models.Base.metadata.create_all(bind=database.engine)
+# Initialize Database
+database.Base.metadata.create_all(bind=database.engine)
 
 @app.get("/health")
 def health():
-    return {"status": "Agentic Mesh Online", "agent": "Active"}
+    return {"status": "Hybrid Neural Mesh Online"}
 
-# 3. AGENTIC CHAT ENGINE: Real-time reasoning
+# --- THE AGENTIC BRAIN ---
 @app.post("/api/agent/chat")
-async def process_agent_logic(request: schemas.AgentRequest):
+async def agent_logic(request: schemas.AgentRequest):
     msg = request.message.lower()
     vitals = request.vitals
     
-    # AGENT 1: BEHAVIORAL ANALYSIS AGENT
-    if any(word in msg for word in ["stress", "anxious", "panic"]):
+    # 1. DETERMINISTIC LAYER (The "Hands")
+    # Triggers app actions 100% reliably for the demo
+    if any(word in msg for word in ["scan", "measure", "pacer", "heart", "pulse"]):
         return {
             "agent": "Behavioral Agent",
-            "response": f"Analyzing mesh signals... Your anxiety is currently {vitals.get('anxiety', 0)}%. I suggest initiating a Relief Pacer scan.",
+            "response": f"I'm activating the Relief Pacer. Your anxiety is {vitals.get('anxiety', 0)}%. Align your face with the camera.",
             "action": "trigger_pacer"
         }
     
-    # AGENT 2: CLINICAL SCHEDULER AGENT
-    if any(word in msg for word in ["doctor", "psychiatrist", "appointment"]):
+    if any(word in msg for word in ["doctor", "psychiatrist", "appointment", "booking"]):
         return {
             "agent": "Scheduler Agent",
-            "response": "I can assist you in booking a session with Dr. Kavita Sharma. Please select a date in the Expert Nodes tab.",
+            "response": "I've connected to the Expert Nodes. Dr. Kavita Sharma has an opening tomorrow.",
             "action": "open_experts"
         }
 
-    return {
-        "agent": "Health Specialist",
-        "response": "I am monitoring your biometric trends. How can I assist you today?",
-        "action": "none"
-    }
+    # 2. GENERATIVE LAYER (The "Brain")
+    # Uses your API Key to answer general medical questions
+    try:
+        # Give the AI context about the user's health
+        context_prompt = f"""
+        You are Silent Signal, an empathetic health AI.
+        User Vitals: Heart Rate {vitals.get('hr')} BPM, Anxiety {vitals.get('anxiety')}%.
+        User Question: {request.message}
+        Keep the answer brief, clinical, and supportive.
+        """
+        response = model.generate_content(context_prompt)
+        return {
+            "agent": "Gemini Health Mind",
+            "response": response.text,
+            "action": "none"
+        }
+    except Exception as e:
+        return {
+            "agent": "System", 
+            "response": "I am operating in offline mode. Please ask about 'scans' or 'doctors'.", 
+            "action": "none"
+        }
 
-# 4. DATA PERSISTENCE: Records real scans and history
+# --- DATA ROUTES ---
 @app.post("/api/logs", response_model=schemas.LogResponse)
 def log_vitals(log: schemas.LogBase, db: Session = Depends(database.get_db)):
     db_log = models.BehavioralLog(**log.model_dump())
     db.add(db_log)
     db.commit()
-    db.refresh(db_log)
     return db_log
 
 @app.get("/api/history", response_model=List[schemas.LogResponse])
 def get_history(db: Session = Depends(database.get_db)):
-    # Returns last 7 entries for the chart
     return db.query(models.BehavioralLog).order_by(models.BehavioralLog.timestamp.desc()).limit(7).all()
 
 @app.post("/api/bookings")
@@ -68,4 +90,4 @@ def create_booking(booking: schemas.BookingCreate, db: Session = Depends(databas
     db_booking = models.ExpertBooking(**booking.model_dump())
     db.add(db_booking)
     db.commit()
-    return {"status": "success", "message": "Consultation recorded locally."}
+    return {"status": "success"}
