@@ -1,104 +1,87 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  Heart, Wind, Moon, MessageSquare, ShieldAlert, Users,
-  Mic, Search, Play, Activity, BrainCircuit, Bell,
-  LayoutDashboard, Send, Sparkles, Phone, TrendingUp,
-  Pause, Info, CheckCircle, Zap, Download, Volume2, Calendar, Stethoscope
+  Heart, Wind, Mic, Search, Activity, BrainCircuit, 
+  LayoutDashboard, Send, Zap, Stethoscope, ShieldAlert, Users,
+  Camera, Home, ArrowRight, CheckCircle, Sparkles,
+  Utensils, ShoppingBag, Plus, Trash2
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeTab, setActiveTab] = useState("home");
   const [showSOS, setShowSOS] = useState(false);
-  const [vitals, setVitals] = useState({ hr: 74, br: 18, anxiety: 22, status: "Calm" });
-  const [intel] = useState({ drift: 0.12, confidence: 94, recoveryHalfLife: 42, cognitive_load: 28 });
-  const [history] = useState([42, 58, 32, 88, 62, 48, 22]);
+  const [vitals, setVitals] = useState({ hr: 0, br: 0, anxiety: 0, status: "Good" });
+  const [history, setHistory] = useState([]);
+  const [cart, setCart] = useState([]); // Pharmacy Cart State
+  
+  // FETCH HISTORY
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/history");
+      if(res.ok) setHistory(await res.json());
+    } catch(e) {}
+  };
+  useEffect(() => { fetchHistory(); }, []);
 
-  const runAnalysis = (hr, br) => {
+  // REAL DATA LOGGING
+  const runAnalysis = async (hr, br) => {
     const anxiety = Math.min(100, Math.round(hr * 0.6 + br * 0.4 - 40));
-    setVitals({ hr, br, anxiety, status: anxiety > 70 ? "Critical" : anxiety > 45 ? "Anxious" : "Calm" });
+    setVitals({ hr, br, anxiety, status: anxiety > 50 ? "Elevated" : "Optimal" });
+    await fetch("http://localhost:8000/api/logs", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hr, br, anxiety_score: anxiety, status: "Active" })
+    });
+    fetchHistory();
   };
 
   return (
-    <div className={`aura-platform aura-${vitals.status.toLowerCase()}`}>
-      <aside className="aura-sidebar">
-        <div className="brand"><BrainCircuit size={28} color="#6366f1" /> <span>SILENT SIGNAL</span></div>
-        <nav className="nav-mesh">
-          <SideBtn id="dashboard" icon={<LayoutDashboard />} label="Dashboard" active={activeTab} set={setActiveTab} />
-          <SideBtn id="pacer" icon={<Wind />} label="Relief Pacer" active={activeTab} set={setActiveTab} />
-          <SideBtn id="chat" icon={<BrainCircuit />} label="Gemini AI (Mesh)" active={activeTab} set={setActiveTab} />
-          <SideBtn id="health-bot" icon={<MessageSquare />} label="Health Assistant" active={activeTab} set={setActiveTab} />
-          <SideBtn id="experts" icon={<Users />} label="Expert Nodes" active={activeTab} set={setActiveTab} />
-        </nav>
-        <button className="sos-action" onClick={() => setShowSOS(true)}><ShieldAlert size={20} /> SOS REPORT</button>
-      </aside>
-
-      <main className="aura-viewport">
-        <header className="aura-header">
-           <div className="search-pill"><Search size={16} /><input placeholder="Search health mesh..." /></div>
-           <div className="header-right">
-             <div className="tracer-pill"><Sparkles size={14} /> Anxiety Tracer: {vitals.anxiety}%</div>
-             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Abhinav" alt="avatar" className="avatar-pro" />
-           </div>
-        </header>
-
-        <section className="aura-stage">
-          {activeTab === "dashboard" && <DashboardView vitals={vitals} intel={intel} history={history} />}
-          {activeTab === "pacer" && <PacerView onScan={runAnalysis} intel={intel} />}
-          {activeTab === "chat" && <GeminiAura vitals={vitals} intel={intel} />}
-          {activeTab === "health-bot" && <HealthChatbot vitals={vitals} />}
+    <div className="pastel-container">
+      <Sidebar active={activeTab} set={setActiveTab} setShowSOS={setShowSOS} cartCount={cart.length} />
+      
+      <main className="pastel-viewport">
+        <Header vitals={vitals} />
+        
+        <section className="pastel-content">
+          {activeTab === "home" && <HomePage setTab={setActiveTab} vitals={vitals} />}
+          {activeTab === "dashboard" && <Dashboard vitals={vitals} history={history} />}
+          {activeTab === "diet" && <DietNode vitals={vitals} />}
+          {activeTab === "pharmacy" && <PharmacyCounter cart={cart} setCart={setCart} />}
+          {activeTab === "pacer" && <ReliefPacer onScan={runAnalysis} />}
+          {activeTab === "chat" && <GeminiMesh vitals={vitals} setTab={setActiveTab} />}
+          {activeTab === "health-bot" && <HealthBot />}
           {activeTab === "experts" && <ExpertNodes />}
         </section>
-
-        <footer className="aura-player">
-          <div className="track-meta"><strong>Delta Sleep</strong> • deep recovery</div>
-          <div className="controls"><button className="play-btn" onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button></div>
-        </footer>
       </main>
-      {showSOS && <SOSModal vitals={vitals} onClose={() => setShowSOS(false)} />}
+
+      {showSOS && <SOSOverlay vitals={vitals} close={()=>setShowSOS(false)} />}
     </div>
   );
 };
 
-/* --- NEW FEATURE: HEALTH & MENTAL HEALTH BOT --- */
-const HealthChatbot = ({ vitals }) => (
-  <div className="fade-in health-bot-stage">
-    <div className="bot-header">
-      <div className="bot-icon-pro"><Stethoscope size={24} color="white" /></div>
-      <div className="bot-meta"><h3>Health Specialist AI</h3><p>Medical & Mental Wellness Support</p></div>
-    </div>
-    <div className="chat-window-pro">
-      <div className="bubble-bot">Hello Abhinav. I'm your health-specific assistant. Based on your current {vitals.status} status, how can I help you today?</div>
-    </div>
-    <div className="chat-input-pill">
-      <input placeholder="Ask about symptoms, diet, or mental health..." /><Send size={20} />
-    </div>
-  </div>
-);
-
-/* --- NEW FEATURE: EXPERT NODES WITH SCHEDULING --- */
-const ExpertNodes = () => {
-  const [selectedDate, setSelectedDate] = useState("");
-  const experts = [
-    { name: "Dr. Kavita Sharma", role: "Sr. Psychiatrist", match: "98%" },
-    { name: "Dr. R. Mehta", role: "Mental Health Lead", match: "92%" }
+/* --- 1. NEW DIET RECOMMENDATION NODE --- */
+const DietNode = ({ vitals }) => {
+  const foods = [
+    { name: "Dark Chocolate", benefit: "Lowers Cortisol", desc: "Contains flavonoids that reduce neuro-inflammation.", color: "brown" },
+    { name: "Blueberries", benefit: "Brain Booster", desc: "Rich in antioxidants to repair stress-damaged cells.", color: "blue" },
+    { name: "Walnuts", benefit: "Omega-3 Rich", desc: "Supports serotonin production for mood stability.", color: "cream" },
+    { name: "Chamomile Tea", benefit: "Sleep Aid", desc: "Natural sedative properties to calm the nervous system.", color: "yellow" },
+    { name: "Spinach", benefit: "Magnesium Boost", desc: "Helps regulate cortisol and blood pressure.", color: "green" },
+    { name: "Avocado", benefit: "Vitamin B Complex", desc: "Essential for healthy nerve and brain cells.", color: "green-light" }
   ];
 
   return (
-    <div className="fade-in expert-stage">
-      <div className="expert-grid">
-        {experts.map((exp, i) => (
-          <div key={i} className="expert-card-pro">
-            <div className="e-head"><h4>{exp.name}</h4><span className="match-tag">{exp.match} Match</span></div>
-            <p className="e-role">{exp.role}</p>
-            <div className="appointment-box">
-              <label><Calendar size={14}/> Select Consultation Date</label>
-              <input type="date" className="date-input" onChange={(e) => setSelectedDate(e.target.value)} />
-            </div>
-            <button className="connect-btn" disabled={!selectedDate}>
-              {selectedDate ? `Book for ${selectedDate}` : "Select Date to Connect"}
-            </button>
+    <div className="diet-layout fade-in">
+      <div className="diet-header">
+        <h2>Neuro-Nutrition Plan</h2>
+        <p>Recommended intake based on your anxiety level of {vitals.anxiety}%.</p>
+      </div>
+      <div className="food-grid">
+        {foods.map((f, i) => (
+          <div key={i} className={`food-card ${f.color}`}>
+            <div className="food-icon"><Utensils size={20}/></div>
+            <h3>{f.name}</h3>
+            <span className="benefit-pill">{f.benefit}</span>
+            <p>{f.desc}</p>
           </div>
         ))}
       </div>
@@ -106,55 +89,72 @@ const ExpertNodes = () => {
   );
 };
 
-/* --- EXISTING COMPONENTS (REFINED) --- */
-const DashboardView = ({ vitals, intel, history }) => (
-  <div className="fade-in">
-    <div className="aura-card-grid">
-      <div className="aura-stat-card rose"><Heart /><span>Heart Rate</span><strong>{vitals.hr} <small>BPM</small></strong></div>
-      <div className="aura-stat-card cyan"><Wind /><span>Breathing</span><strong>{vitals.br} <small>RPM</small></strong></div>
-      <div className="aura-stat-card purple"><Activity /><span>Cognitive Load</span><strong>{intel.cognitive_load}% <small>EST</small></strong></div>
-    </div>
-    <div className="history-glass">
-       <h3>7-Day Trend (Event Correlation Active)</h3>
-       <div className="aura-bars">
-         {history.map((h, i) => (
-           <div key={i} className="bar-wrapper"><div className={`bar ${h > 70 ? 'alert' : ''}`} style={{height: `${h}%`}} /><span>D{i+1}</span></div>
-         ))}
-       </div>
-    </div>
-  </div>
-);
+/* --- 2. NEW PHARMACY COUNTER --- */
+const PharmacyCounter = ({ cart, setCart }) => {
+  const products = [
+    { id: 1, name: "Calm-Magnesium", price: "$15", desc: "Stress relief powder." },
+    { id: 2, name: "Melatonin Sleep", price: "$12", desc: "For deep REM cycles." },
+    { id: 3, name: "Ashwagandha", price: "$20", desc: "Lowers cortisol naturally." },
+    { id: 4, name: "Vitamin D3", price: "$10", desc: "Mood elevator." }
+  ];
 
-const GeminiAura = ({ vitals, intel }) => (
-  <div className="chat-aura-stage fade-in">
-     <div className={`neural-orb-pro ${vitals.status.toLowerCase()}`}><div className="orb-inner" /></div>
-     <div className="chat-window-pro"><div className="bubble-bot">Neural mesh synced. monitoring your behavioral rhythm.</div></div>
-     <div className="chat-input-pill"><Mic size={20} /><input placeholder="Analyze mesh signals..." /><Send size={20} /></div>
-  </div>
-);
+  const addToCart = (p) => setCart([...cart, p]);
+  const checkout = () => { alert("Order Placed Successfully!"); setCart([]); };
 
-const PacerView = ({ onScan, intel }) => {
-  const videoRef = useRef(null);
-  const [scanning, setScanning] = useState(false);
-  const start = async () => {
-    setScanning(true);
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    videoRef.current.srcObject = stream;
-    setTimeout(() => { onScan(106, 24); stream.getTracks().forEach(t => t.stop()); setScanning(false); }, 5000);
-  };
   return (
-    <div className="pacer-stage fade-in">
-      <div className="pacer-head"><h3>Biometric Scanner</h3><button onClick={start} className="scan-trigger">Start Scan</button></div>
-      <div className="aura-scanner"><video ref={videoRef} autoPlay muted />{scanning && <div className="medical-line" />}</div>
+    <div className="pharmacy-layout fade-in">
+      <div className="shop-section">
+        <h2>Mental Wellness Pharmacy</h2>
+        <div className="product-grid">
+          {products.map((p) => (
+            <div key={p.id} className="product-card">
+              <div className="prod-img">Rx</div>
+              <h3>{p.name}</h3>
+              <p>{p.desc}</p>
+              <div className="price-row">
+                <span>{p.price}</span>
+                <button onClick={() => addToCart(p)}><Plus size={16}/> Add</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <div className="cart-sidebar">
+        <h3>Your Cart <ShoppingBag size={18}/></h3>
+        {cart.length === 0 ? <p className="empty-msg">Cart is empty</p> : (
+          <div className="cart-items">
+            {cart.map((c, i) => (
+              <div key={i} className="cart-item">
+                <span>{c.name}</span>
+                <strong>{c.price}</strong>
+              </div>
+            ))}
+            <button className="checkout-btn" onClick={checkout}>Checkout</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-const SideBtn = ({ id, icon, label, active, set }) => (
-  <div className={`nav-item-pro ${active === id ? "active" : ""}`} onClick={() => set(id)}>{icon} <span>{label}</span></div>
-);
-const SOSModal = ({vitals, onClose}) => (
-  <div className="sos-overlay"><div className="sos-modal"><ShieldAlert size={48} color="#ef4444" /><h2>SOS Active</h2><QRCodeSVG value={`SOS-${vitals.anxiety}`} size={160}/><button onClick={onClose}>Dismiss</button></div></div>
-);
+/* --- EXISTING COMPONENTS (Home, Pacer, Chat, etc.) --- */
+const HomePage=({setTab,vitals})=>(<div className="home-layout fade-in"><div className="hero-section"><div className="hero-text"><h1>Good Morning, Abhinav.</h1><p>Your neural mesh is active. Biometrics are stable.</p><button className="hero-btn" onClick={()=>setTab('pacer')}>Start Daily Scan <ArrowRight size={18}/></button></div><div className="hero-card"><div className="pulse-ring"></div><Activity size={40} className="hero-icon"/><h3>{vitals.status}</h3><span>Current Status</span></div></div><div className="quick-grid"><div className="quick-card pink" onClick={()=>setTab('chat')}><BrainCircuit size={24}/><h3>Gemini Mesh</h3><p>Talk to Agentic AI.</p></div><div className="quick-card blue" onClick={()=>setTab('diet')}><Utensils size={24}/><h3>Neuro-Diet</h3><p>Anxiety-reducing foods.</p></div><div className="quick-card cream" onClick={()=>setTab('pharmacy')}><ShoppingBag size={24}/><h3>Pharmacy</h3><p>Wellness store.</p></div></div></div>);
+
+const GeminiMesh=({vitals,setTab})=>{const [msgs,setMsgs]=useState([{role:"bot",text:"Neural Agent synchronized. I monitor behavioral drift."}]);const [input,setInput]=useState("");const send=async()=>{const newMsgs=[...msgs,{role:"user",text:input}];setMsgs(newMsgs);setInput("");try{const res=await fetch("http://localhost:8000/api/agent/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:input,vitals})});const data=await res.json();if(data.action==="trigger_pacer")setTab("pacer");if(data.action==="open_experts")setTab("experts");setMsgs([...newMsgs,{role:"bot",text:data.response}]);}catch(e){setMsgs([...newMsgs,{role:"bot",text:"Offline Mode."}]);}};return(<div className="gemini-layout fade-in"><div className="orb-container"><div className={`neural-orb ${vitals.anxiety>50?"stress":"calm"}`}><div className="inner-glow"/></div></div><div className="chat-interface"><div className="chat-feed">{msgs.map((m,i)=><div key={i} className={`msg ${m.role}`}>{m.text}</div>)}</div><div className="chat-input-row"><input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask Gemini..." /><button onClick={send}><Send size={20}/></button></div></div></div>);};
+
+const ReliefPacer=({onScan})=>{const videoRef=useRef(null);const [scanning,setScanning]=useState(false);const start=async()=>{setScanning(true);const s=await navigator.mediaDevices.getUserMedia({video:true,audio:true});videoRef.current.srcObject=s;setTimeout(()=>{onScan(75,18);s.getTracks().forEach(t=>t.stop());setScanning(false);},4000);};return(<div className="pacer-layout fade-in"><div className="scanner-frame">{scanning?<video ref={videoRef} autoPlay muted className="live-video"/>:<div className="cam-placeholder"><Camera size={40}/></div>}{scanning&&<div className="scan-laser"/>}</div><div className="scanner-ui"><h2>Biometric Sync</h2><div className="indicators"><span className={scanning?"active":""}><Mic size={16}/> Voice</span><span className={scanning?"active":""}><Camera size={16}/> Face</span></div><button className="action-btn" onClick={start}>{scanning?"Scanning...":"Start Health Scan"}</button></div></div>);};
+
+const HealthBot=()=>{const [msgs,setMsgs]=useState([{role:"bot",text:"Medical Specialist active. Describe your symptoms."}]);const [input,setInput]=useState("");const send=()=>{setMsgs([...msgs,{role:"user",text:input},{role:"bot",text:"Noted. Recommendation: Hydration and Rest."}]);setInput("");};return(<div className="medical-layout fade-in"><div className="medical-header"><Stethoscope size={28}/><h2>Dr. AI Specialist</h2></div><div className="medical-feed">{msgs.map((m,i)=><div key={i} className={`med-msg ${m.role}`}>{m.text}</div>)}</div><div className="medical-input"><input value={input} onChange={e=>setInput(e.target.value)} placeholder="Type symptoms..."/><button onClick={send}><Send size={20}/></button></div></div>);};
+
+const ExpertNodes=()=>{const [date,setDate]=useState("");const [bookingStatus,setBookingStatus]=useState(null);const experts=[{name:"Dr. Kavita Sharma",role:"Clinical Psychiatrist",match:"98%",tags:["Anxiety","CBT"]},{name:"Dr. R. Mehta",role:"Neuro-Psychologist",match:"94%",tags:["Trauma","Sleep"]}];const handleBook=async(expertName)=>{if(!date){alert("Please select a date first.");return;}try{const res=await fetch("http://localhost:8000/api/bookings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({expert_name:expertName,consultation_date:date})});if(res.ok){setBookingStatus(`Confirmed: ${expertName} on ${date}`);setTimeout(()=>setBookingStatus(null),3000);}}catch(err){alert("Booking failed. Is backend running?");}};return(<div className="experts-layout fade-in"><div className="experts-header"><h2>Expert Consultation Nodes</h2><p>AI-matched specialists.</p></div>{bookingStatus&&<div className="success-banner"><CheckCircle size={20}/>{bookingStatus}</div>}<div className="expert-grid">{experts.map((exp,i)=>(<div key={i} className="expert-card"><div className="match-badge">{exp.match} Match</div><div className="expert-avatar-box">{exp.name.charAt(0)}</div><h3>{exp.name}</h3><p className="expert-role">{exp.role}</p><div className="tags-row">{exp.tags.map(t=><span key={t} className="tag">{t}</span>)}</div><div className="booking-action"><input type="date" className="date-picker" onChange={(e)=>setDate(e.target.value)}/><button className="book-btn" onClick={()=>handleBook(exp.name)}>Book Session</button></div></div>))}</div></div>);};
+
+const Dashboard=({vitals,history})=>(<div className="dash-layout fade-in"><div className="stats-row"><Card icon={<Heart color="#FF8FA3"/>} label="Heart Rate" val={`${vitals.hr} BPM`} /><Card icon={<Wind color="#A0C4FF"/>} label="Breathing" val={`${vitals.br} RPM`} /><Card icon={<Zap color="#BDB2FF"/>} label="Anxiety" val={`${vitals.anxiety}%`} /></div><div className="chart-box"><h3>7-Day Trends</h3><div className="bars">{history.map((h,i)=><div key={i} className="bar" style={{height:`${h.anxiety_score}%`}}></div>)}</div></div></div>);
+
+const Sidebar=({active,set,setShowSOS,cartCount})=>(<aside className="pastel-sidebar"><div className="logo"><BrainCircuit color="#FF8FA3" size={28}/> SilentSignal</div><nav>{[{id:'home',icon:<Home size={18}/>},{id:'dashboard',icon:<LayoutDashboard size={18}/>},{id:'diet',icon:<Utensils size={18}/>},{id:'pharmacy',icon:<ShoppingBag size={18}/>,count:cartCount},{id:'pacer',icon:<Wind size={18}/>},{id:'chat',icon:<Sparkles size={18}/>},{id:'health-bot',icon:<Stethoscope size={18}/>},{id:'experts',icon:<Users size={18}/>}].map(item=><div key={item.id} className={`nav-btn ${active===item.id?'active':''}`} onClick={()=>set(item.id)}>{item.icon}{item.id.replace('-',' ').toUpperCase()}{item.count>0&&<span className="nav-badge">{item.count}</span>}</div>)}</nav><button className="sos-btn" onClick={()=>setShowSOS(true)}><ShieldAlert size={18}/> EMERGENCY SOS</button></aside>);
+
+const Card=({icon,label,val})=><div className="stat-card"><div className="icon-box">{icon}</div><div><h4>{val}</h4><p>{label}</p></div></div>;
+const Header=({vitals})=><header className="pastel-header"><div className="search-bar"><Search size={16}/><input placeholder="Search..." /></div><div className="user-pill"><img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Abhinav" alt="User"/> Abhinav Jha</div></header>;
+const SOSOverlay=({close})=><div className="sos-overlay"><div className="sos-box"><ShieldAlert size={60} color="#FF0000"/><button onClick={close}>Dismiss</button></div></div>;
 
 export default App;
