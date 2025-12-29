@@ -1,5 +1,4 @@
 # Silent Signal
-**Microsoft Imagine Cup 2025 Submission**
 
 ## The Mission
 Silent Signal is a hyper-personalized mental health platform designed to bridge the gap between biological signals and psychological support. In a world where mental health struggles are often invisible, Silent Signal acts as an intelligent lifeline, using a hybrid neural architecture to monitor anxiety levels in real-time and provide immediate, agentic AI intervention.
