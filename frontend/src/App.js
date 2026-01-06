@@ -68,7 +68,6 @@ const App = () => {
   );
 };
 
-/* --- FIXED SOS OVERLAY (The Emergency Problem Solver) --- */
 const SOSOverlay = ({ vitals, close }) => (
   <div className="sos-overlay">
     <div className="sos-box">
@@ -97,7 +96,7 @@ const SOSOverlay = ({ vitals, close }) => (
   </div>
 );
 
-/* --- RELIEF PACER --- */
+
 const ReliefPacer = ({ onScan }) => {
   const videoRef = useRef(null);
   const [scanning, setScanning] = useState(false);
@@ -142,7 +141,7 @@ const ReliefPacer = ({ onScan }) => {
     </div>
   );
 };
-/*--- Relief---*/
+
 const ReliefSection = () => {
   const [filter, setFilter] = useState("All");
   const [favorites, setFavorites] = useState([]); // Array of IDs
@@ -217,7 +216,7 @@ const ReliefSection = () => {
     );
   };
 
-  // Logic to filter content based on Mood OR Favorites
+ 
   const filteredSongs = mediaData.songs.filter(s => 
     filter === "Favorites" ? favorites.includes(s.id) : (filter === "All" || s.cat === filter)
   );
@@ -409,7 +408,7 @@ const ReliefSection = () => {
     </div>
   );
 };
-/* --- OTHER COMPONENTS --- */
+
 const DietNode = ({ vitals }) => {
   const foods = [
     { name: "Dark Chocolate", benefit: "Lowers Cortisol", desc: "Flavonoids reduce neuro-inflammation.", color: "brown" },

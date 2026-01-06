@@ -5,45 +5,50 @@ from typing import List
 import models, schemas, database
 import google.generativeai as genai
 import os
-from dotenv import load_dotenv # <--- NEW IMPORT
+from dotenv import load_dotenv
 
-# --- CONFIGURATION ---
-load_dotenv() # Load the hidden .env file
-API_KEY = os.getenv("GEMINI_API_KEY") # Get the key securely
+from azure.ai.textanalytics import TextAnalyticsClient
+from azure.core.credentials import AzureKeyCredential
+import azure.cognitiveservices.speech as speechsdk
 
-if not API_KEY:
-    print("❌ ERROR: API Key not found! Make sure you created the .env file.")
-else:
-    genai.configure(api_key=API_KEY)
-    print("🔒 SUCCESS: API Key loaded securely.")
-# --- SMART MODEL SELECTOR (Fixed Typo) ---
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
+
+language_key = os.getenv("AZURE_LANGUAGE_KEY")
+language_endpoint = os.getenv("AZURE_LANGUAGE_ENDPOINT")
+
+def authenticate_azure_language():
+    if not language_key or not language_endpoint:
+        return None
+    credential = AzureKeyCredential(language_key)
+    return TextAnalyticsClient(endpoint=language_endpoint, credential=credential)
+
+azure_client = authenticate_azure_language()
+
+speech_key = os.getenv("AZURE_SPEECH_KEY")
+speech_region = os.getenv("AZURE_SPEECH_REGION")
+
 def get_working_model():
-    # Corrected model names based on your account list
     candidates = [
-        "models/gemini-flash-latest",      # FASTEST (Fixed)
-        "models/gemini-1.5-flash",         # Stable Flash
-        "models/gemini-pro",               # Standard Pro
-        "gemini-1.5-flash",                # Fallback without prefix
-        "gemini-pro"                       # Final Fallback
+        "models/gemini-flash-latest",     
+        "models/gemini-1.5-flash",         
+        "models/gemini-pro",               
+        "gemini-1.5-flash",                
+        "gemini-pro"                       
     ]
-    
-    print("🔄 Connecting to Neural Mesh...")
     for model_name in candidates:
         try:
             model = genai.GenerativeModel(model_name)
-            # Test connection with a tiny prompt
             model.generate_content("test")
-            print(f"✅ SUCCESS: Connected to '{model_name}'")
+            print(f"✅ Neural Mesh Linked: {model_name}")
             return model
-        except Exception:
+        except:
             continue
-    
-    print("⚠️ WARNING: Could not connect to primary models. Using backup...")
-    return genai.GenerativeModel("gemini-pro") 
+    return genai.GenerativeModel("gemini-pro")
 
-# Initialize the AI
 model = get_working_model()
-
 app = FastAPI(title="Silent Signal Hybrid Agent")
 
 app.add_middleware(
@@ -58,48 +63,69 @@ database.Base.metadata.create_all(bind=database.engine)
 
 @app.get("/health")
 def health():
-    return {"status": "Hybrid Neural Mesh Online"}
+    return {"status": "Hybrid Neural Mesh Online (Google + Microsoft Azure)"}
 
 @app.post("/api/agent/chat")
 async def agent_logic(request: schemas.AgentRequest):
-    msg = request.message.lower()
+    msg = request.message
     vitals = request.vitals
     
-    # --- LAYER 1: APP CONTROLS (Deterministic) ---
-    if any(word in msg for word in ["scan", "measure", "pacer", "heart", "pulse"]):
-        return {"agent": "Behavioral Agent", "response": "Opening Relief Pacer...", "action": "trigger_pacer"}
-    
-    if any(word in msg for word in ["doctor", "psychiatrist", "appointment", "booking"]):
-        return {"agent": "Scheduler Agent", "response": "Opening Expert Nodes...", "action": "open_experts"}
-    
-    if any(word in msg for word in ["pharmacy", "medicine", "pill", "supplement"]):
-        return {"agent": "Pharmacy Agent", "response": "Opening Pharmacy...", "action": "open_pharmacy"}
 
-    # --- LAYER 2: MEDICAL AI (Generative) ---
+    detected_sentiment = "Unknown"
+    confidence_scores = {}
+    
+    if azure_client:
+        try:
+           
+            documents = [msg]
+            result = azure_client.analyze_sentiment(documents, show_opinion_mining=False)
+            docs = [doc for doc in result if not doc.is_error]
+            if docs:
+                detected_sentiment = docs[0].sentiment  # "positive", "negative", "neutral"
+                print(f"🧠 Azure Analysis: User is feeling {detected_sentiment.upper()}")
+        except Exception as e:
+            print(f"Azure Error: {e}")
+
+  
     try:
+    
         context_prompt = f"""
-        You are Silent Signal, an empathetic medical AI assistant.
-        User Vitals: Heart Rate {vitals.get('hr', 'N/A')} BPM, Anxiety {vitals.get('anxiety', 'N/A')}%.
-        User Question: "{request.message}"
+        You are Dr. AI, an empathetic specialist.
+        User Status:
+        - Heart Rate: {vitals.get('hr', 'N/A')} BPM
+        - Anxiety Level: {vitals.get('anxiety', 'N/A')}%
+        - AI Detected Emotion (Azure): {detected_sentiment.upper()}
+        
+        User Query: "{msg}"
         
         Instructions:
         1. Keep response under 50 words.
-        2. Be clinical yet comforting.
-        3. If asking about diet, mention specific foods.
+        2. Acknowledge their emotion ({detected_sentiment}) subtly.
+        3. Be comforting and clinical.
         """
         
         response = model.generate_content(context_prompt)
-        return {"agent": "Dr. AI", "response": response.text, "action": "none"}
+        ai_text = response.text
+
+       
+        if speech_key and speech_region:
+            try:
+                speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+                speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm)
+                synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
+                
+                result = synthesizer.speak_text_async(ai_text).get()
+                print("🔊 Azure Speech: Voice synthesis generated successfully.")
+            except Exception as e:
+                print(f"Speech Error: {e}")
+
+        return {"agent": "Dr. AI (Azure+Gemini)", "response": ai_text, "action": "none"}
         
     except Exception as e:
         print(f"AI Error: {e}")
-        return {
-            "agent": "System", 
-            "response": "I am operating in offline mode. Please check your internet connection.", 
-            "action": "none"
-        }
+        return {"agent": "System", "response": "Offline Mode", "action": "none"}
 
-# --- DATABASE ROUTES ---
+
 @app.post("/api/logs", response_model=schemas.LogResponse)
 def log_vitals(log: schemas.LogBase, db: Session = Depends(database.get_db)):
     db_log = models.BehavioralLog(**log.model_dump())

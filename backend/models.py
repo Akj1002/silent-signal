@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime
 from datetime import datetime
-import database  # FIXED: Absolute import
+import database 
 
 class BehavioralLog(database.Base):
     __tablename__ = "behavioral_logs"
