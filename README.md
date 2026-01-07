@@ -53,7 +53,7 @@ Treating the mind through the body.
 
 ---
 
-## 🛠️ Technical Architecture
+## Technical Architecture
 
 ### **Frontend (The Body)**
 * **Framework:** React.js (Vite)
