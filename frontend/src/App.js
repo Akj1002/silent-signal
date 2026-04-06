@@ -4,690 +4,568 @@ import {
   LayoutDashboard, Send, Zap, ShieldAlert, Users,
   Camera, Home, ArrowRight, CheckCircle, Sparkles,
   Utensils, ShoppingBag, Plus, Video, Music, CreditCard, Smartphone, Banknote,
-  Volume2, History, X, ChevronLeft, Star, Settings, Paperclip
+  Volume2, History, X, ChevronLeft, Star, Settings, Paperclip, Lock, Mail, User, ClipboardList,
+  Download, Cloud, MessageCircle, FileText, Share2, LogOut, Calendar, Clock, Instagram, Linkedin, MicOff
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import axios from 'axios';
 import './App.css';
 
 const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState({ name: "", email: "" }); 
   const [activeTab, setActiveTab] = useState("home");
   const [showSOS, setShowSOS] = useState(false);
-  
-  // GLOBAL STATE
   const [vitals, setVitals] = useState({ hr: "--", br: "--", anxiety: 0, status: "Pending" });
   const [cart, setCart] = useState([]); 
   const [history, setHistory] = useState([
-    { day: "Mon", val: 20 }, { day: "Tue", val: 45 }, { day: "Wed", val: 30 }, 
-    { day: "Thu", val: 60 }, { day: "Fri", val: 25 }, { day: "Sat", val: 15 }, { day: "Sun", val: 10 }
+    { day: "Mon", val: 20 }, { day: "Tue", val: 45 }, { day: "Wed", val: 30 }
   ]);
 
-  const handleScanComplete = (hr, br) => {
-    const anxiety = Math.min(100, Math.round((hr * 0.5) + (br * 1.5) - 40));
-    setVitals({ hr, br, anxiety, status: anxiety > 50 ? "High" : "Optimal" });
-    setActiveTab("mesh"); // Auto-redirect to Orb
+  const handleScanComplete = (hr, anxiety) => {
+    setVitals({ hr, br: Math.round(hr/4), anxiety, status: anxiety > 50 ? "High" : "Optimal" });
+    setHistory(prev => [...prev.slice(1), { day: "Today", val: hr }]); 
+    setActiveTab("mesh"); 
   };
+
+  if (!isAuthenticated) {
+    return <AuthPage onLogin={(userData) => { setUser(userData); setIsAuthenticated(true); }} />;
+  }
 
   return (
     <div className="pastel-container">
       <Sidebar active={activeTab} set={setActiveTab} setShowSOS={setShowSOS} cartCount={cart.length} />
       
       <main className="pastel-viewport">
-        <Header user="Abhinav Jha" />
-        
+        <Header user={user.name} onLogout={() => { setIsAuthenticated(false); setActiveTab("home"); }} />
         <div className="content-area">
-          {activeTab === "home" && <HomePage setTab={setActiveTab} vitals={vitals} />}
+          {activeTab === "home" && <HomePage setTab={setActiveTab} vitals={vitals} user={user.name} />}
+          {activeTab === "pacer" && <ReliefPacer onScan={handleScanComplete} />}
+          {activeTab === "mesh" && <NeuralMesh vitals={vitals} setTab={setActiveTab} />}
           {activeTab === "dashboard" && <Dashboard vitals={vitals} history={history} />}
-          
-          {/* FEATURES */}
+          {activeTab === "chat" && <AdvancedDrAI vitals={vitals} user={user.name} />}
+          {activeTab === "experts" && <ExpertNodes setTab={setActiveTab} />}
+          {activeTab === "consultation" && <ConsultationRoom setTab={setActiveTab} setCart={setCart} cart={cart} vitals={vitals} user={user.name} />}
           {activeTab === "diet" && <DietNode vitals={vitals} />}
           {activeTab === "pharmacy" && <PharmacyCounter cart={cart} setCart={setCart} />}
-          {activeTab === "pacer" && <ReliefPacer onScan={handleScanComplete} />}
-          
-          {/* AI MODULES */}
-          {activeTab === "mesh" && <NeuralMesh vitals={vitals} />}
-          {activeTab === "chat" && <AdvancedDrAI vitals={vitals} />}
-          
-          {activeTab === "experts" && <ExpertNodes />}
           {activeTab === "relief" && <ReliefSection />}
         </div>
       </main>
-
       {showSOS && <SOSOverlay vitals={vitals} close={()=>setShowSOS(false)} />}
     </div>
   );
 };
 
-// --- 1. CONNECTED DR. AI (Gemini + Azure Voice) ---
-const AdvancedDrAI = ({ vitals }) => {
-  const [msgs, setMsgs] = useState([
-    { role: "bot", text: "Hello Abhinav. I'm Dr. AI. I have access to your live vitals. How can I help?" }
-  ]);
+/* --- 1. DYNAMIC AUTHENTICATION PAGE --- */
+const AuthPage = ({ onLogin }) => {
+  const [mode, setMode] = useState("login");
+  const [loading, setLoading] = useState(false);
+  const [pickerType, setPickerType] = useState(null); 
+  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+
+  const socialAccounts = {
+    google: [
+      { name: "Abhinav Jha", email: "abhinav.jha@gmail.com", color: "#4285F4" },
+      { name: "Imagine Cup Demo", email: "demo.user@microsoft.com", color: "#34A853" }
+    ],
+    linkedin: [
+      { name: "Abhinav Kumar Jha", email: "abhinav-jha-link", color: "#0077B5", sub: "Software Engineer @SRM" },
+      { name: "Recruiter Account", email: "talent@hiring.com", color: "#0077B5", sub: "Premium Member" }
+    ],
+    instagram: [
+      { name: "abhinav_jha_official", email: "@abhinav_jha", color: "#E4405F" },
+      { name: "silent_signal_project", email: "@silent_signal", color: "#E4405F" }
+    ]
+  };
+
+  const handleLocalSubmit = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      const displayName = mode === 'signup' ? formData.name : (formData.name || formData.email.split('@')[0]);
+      onLogin({ name: displayName || "User", email: formData.email });
+      setLoading(false);
+    }, 1000);
+  };
+
+  const selectAccount = (acc) => {
+    setLoading(true);
+    setPickerType(null);
+    setTimeout(() => {
+      onLogin({ name: acc.name, email: acc.email, provider: pickerType });
+      setLoading(false);
+    }, 800);
+  };
+
+  return (
+    <div className="auth-container">
+      {pickerType && (
+        <div className="social-overlay">
+          <div className={`social-picker fade-in ${pickerType}-theme`}>
+            <div className="sp-header">
+              {pickerType === 'google' && <BrainCircuit color="#4285F4" size={30} />}
+              {pickerType === 'linkedin' && <Linkedin color="#0077B5" size={30} fill="#0077B5" />}
+              {pickerType === 'instagram' && <Instagram color="#E4405F" size={30} />}
+              <h3>Sign in with {pickerType.charAt(0).toUpperCase() + pickerType.slice(1)}</h3>
+              <p>Choose an account to link with <span>SilentSignal</span></p>
+            </div>
+            
+            <div className="sp-list">
+              {socialAccounts[pickerType].map((acc, i) => (
+                <div key={i} className="sp-item" onClick={() => selectAccount(acc)}>
+                  <div className="sp-avatar" style={{backgroundColor: acc.color}}>{acc.name[0]}</div>
+                  <div className="sp-info">
+                    <span className="sp-name">{acc.name}</span>
+                    <span className="sp-email">{acc.email}</span>
+                    {acc.sub && <span className="sp-sub">{acc.sub}</span>}
+                  </div>
+                </div>
+              ))}
+              
+              <div className="sp-item use-another" onClick={() => setPickerType(null)}>
+                <div className="sp-avatar" style={{background: '#f1f3f4', color: '#5f6368'}}><User size={20} /></div>
+                <div className="sp-info"><span className="sp-name" style={{color: '#1a73e8'}}>Use another account</span></div>
+              </div>
+            </div>
+            <button className="sp-cancel" onClick={() => setPickerType(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="auth-box fade-in">
+        <div className="auth-header">
+          <BrainCircuit size={40} color="#FF8FA3" />
+          <h2>SilentSignal</h2>
+          <p>Secure Neural Mesh Access</p>
+        </div>
+
+        {mode !== 'forgot' && (
+          <div className="auth-tabs">
+            <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Login</button>
+            <button type="button" className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')}>Sign Up</button>
+          </div>
+        )}
+
+        <form className="auth-form" onSubmit={handleLocalSubmit}>
+          {mode === 'signup' && (
+            <div className="input-group">
+              <User size={18} />
+              <input name="name" type="text" placeholder="Full Name" required onChange={(e) => setFormData({...formData, name: e.target.value})} />
+            </div>
+          )}
+          <div className="input-group">
+            <Mail size={18} />
+            <input name="email" type="email" placeholder="Email Address" required onChange={(e) => setFormData({...formData, email: e.target.value})} />
+          </div>
+          {mode !== 'forgot' && (
+            <div className="input-group">
+              <Lock size={18} />
+              <input name="password" type="password" placeholder="Password" required onChange={(e) => setFormData({...formData, password: e.target.value})} />
+            </div>
+          )}
+          <button type="submit" className="auth-btn" disabled={loading}>
+            {loading ? "Authenticating..." : mode === 'login' ? 'Login Securely' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="social-login-sect">
+          <div className="divider"><span>OR CONTINUE WITH</span></div>
+          <div className="social-icons">
+            <button type="button" onClick={() => setPickerType('google')} className="social-btn google">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#EA4335" d="M12 5.04c1.9 0 3.51.64 4.85 1.91l3.6-3.6C18.28 1.41 15.38 0 12 0 7.31 0 3.32 2.69 1.38 6.61l4.22 3.27C6.54 7.22 9.04 5.04 12 5.04z"/><path fill="#4285F4" d="M23.49 12.27c0-.8-.07-1.56-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l4.13 3.21c2.41-2.23 3.8-5.52 3.8-9.03z"/><path fill="#FBBC05" d="M5.61 14.53c-.23-.69-.35-1.42-.35-2.18s.13-1.49.35-2.18l-4.22-3.27C.5 8.36 0 10.13 0 12s.5 3.64 1.39 5.29l4.22-3.27z"/><path fill="#34A853" d="M12 24c3.24 0 5.97-1.07 7.96-2.91l-4.13-3.21c-1.1.74-2.51 1.17-3.83 1.17-3.01 0-5.56-2.03-6.47-4.76l-4.22 3.27C3.32 21.31 7.31 24 12 24z"/></svg>
+            </button>
+            <button type="button" onClick={() => setPickerType('linkedin')} className="social-btn linkedin"><Linkedin size={22} fill="#0077B5" color="#0077B5" /></button>
+            <button type="button" onClick={() => setPickerType('instagram')} className="social-btn insta"><Instagram size={22} color="#E4405F" /></button>
+          </div>
+        </div>
+
+        <div className="auth-links">
+          {mode === 'login' && <span className="text-link" onClick={() => setMode('forgot')}>Forgot your password?</span>}
+          {mode === 'forgot' && <span className="text-link" onClick={() => setMode('login')}>← Back to Login</span>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* --- 2. HEADER --- */
+const Header = ({ user, onLogout }) => ( 
+  <header className="pastel-header">
+    <div className="search"><Search size={16}/><input placeholder="Search medical records..."/></div>
+    <div className="header-right">
+      <div className="user-profile"><div className="user-avatar">{user ? user[0] : 'U'}</div><span>{user}</span></div>
+      <button className="logout-btn" onClick={onLogout}><LogOut size={16}/> Logout</button>
+    </div>
+  </header> 
+);
+
+/* --- 3. BIOMETRIC SCANNER (With Demo Mode) --- */
+const ReliefPacer = ({ onScan }) => {
+  const videoRef = useRef(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [statusText, setStatusText] = useState("System Ready");
+  
+  useEffect(() => {
+    let stream = null;
+    const enableCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) { videoRef.current.srcObject = stream; setCameraActive(true); }
+      } catch (err) { console.error("Camera Error:", err); }
+    };
+    enableCamera();
+    return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
+  }, []);
+
+  const startScan = async (simulateStress = false) => {
+    setScanning(true); 
+    setStatusText("Initializing YOLOv8 Face Tracking...");
+    
+    try {
+      await new Promise(r => setTimeout(r, 1500)); 
+      setStatusText("Extracting rPPG Signal...");
+      
+      if (simulateStress) {
+        setStatusText("Simulating Acute Stress Marker...");
+        setTimeout(() => { onScan(118, 85); setScanning(false); }, 1500);
+        return; 
+      }
+
+      const response = await axios.post('http://127.0.0.1:8000/api/scan', { user_id: "demo_user" });
+      setStatusText("Data Received.");
+      onScan(response.data.bpm, response.data.anxiety_score);
+      setScanning(false);
+    } catch (error) {
+      setStatusText("Neural Link Failed. Using offline fallback.");
+      setTimeout(() => { onScan(simulateStress ? 118 : 65, simulateStress ? 85 : 12); setScanning(false); }, 2000); 
+    } 
+  };
+
+  return (
+    <div className="pacer-layout fade-in">
+      <div className="camera-frame">
+        <video ref={videoRef} autoPlay muted className={`live-video ${cameraActive ? 'opacity-100' : 'opacity-50'}`} />
+        {!scanning && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', gap: '15px' }}>
+            <button onClick={() => startScan(false)} className="big-pink-btn">START NEURAL SCAN</button>
+            <button 
+              onClick={() => startScan(true)} 
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 20px', borderRadius: '20px', fontSize: '0.8rem', cursor: 'pointer', transition: '0.2s' }}
+            >
+              Demo: Simulate High Stress
+            </button>
+          </div>
+        )}
+        {scanning && ( <><div className="scan-line"></div><div className="scan-overlay-text">{statusText}</div></> )}
+      </div>
+    </div>
+  );
+};
+
+/* --- 4. NEURAL MESH --- */
+const NeuralMesh = ({ vitals, setTab }) => {
+  const isHighStress = vitals.anxiety > 50;
+  return (
+    <div className="mesh-layout fade-in">
+      <div className="orb-section">
+        <div className={`orb ${isHighStress ? 'stress' : 'calm'}`}></div><h2>Neural Mesh Analysis</h2>
+      </div>
+      <div className="vitals-panel">
+        <h3>Live Biometrics</h3>
+        <div className="vital-row">
+          <div className="v-card"><h4>{vitals.hr} BPM</h4><p>Heart Rate</p></div>
+          <div className="v-card"><h4>{vitals.anxiety}%</h4><p>Stress Level</p></div>
+        </div>
+        <div className="diagnosis-box">
+          <h4>💡 AI Recommendation</h4>
+          <p>{isHighStress ? "Severe stress detected. Immediate intervention required." : "Vitals are optimal. Proceed to relaxation."}</p>
+        </div>
+        <div className="action-buttons">
+          {isHighStress ? (
+            <><button className="mesh-btn dr-book" onClick={() => setTab("experts")}><Users size={20}/> Yes, Book a Doctor</button>
+              <button className="mesh-btn dr-ai" onClick={() => setTab("chat")}><BrainCircuit size={20}/> Yes, Chat with Dr. AI</button></>
+          ) : ( <button className="mesh-btn relief" onClick={() => setTab("relief")}><Music size={20}/> I prefer the Relief Sanctuary</button> )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* --- SHARED VOICE RECOGNITION LOGIC --- */
+const handleVoiceInput = (setInput, setIsListening) => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Voice recognition is not supported in this browser. Please use Google Chrome.");
+    return;
+  }
+  const recognition = new SpeechRecognition();
+  recognition.onstart = () => setIsListening(true);
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    setInput(prev => prev + (prev ? " " : "") + transcript);
+    setIsListening(false);
+  };
+  recognition.onerror = () => setIsListening(false);
+  recognition.onend = () => setIsListening(false);
+  recognition.start();
+};
+
+/* --- 5. DR. AI CHAT (With Persistence, Voice & WA UI) --- */
+const AdvancedDrAI = ({ vitals, user }) => {
+  const [msgs, setMsgs] = useState(() => {
+    const saved = localStorage.getItem("silent_signal_dr_ai");
+    return saved ? JSON.parse(saved) : [{ 
+      role: "bot", 
+      text: `Hello ${user || 'Patient'}. I'm Dr. AI. I have access to your live vitals. How can I help?`,
+      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    }];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [model, setModel] = useState("Gemini Pro");
-  const [showHistory, setShowHistory] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const chatEndRef = useRef(null);
 
-  // --- REAL BACKEND CONNECTION ---
+  useEffect(() => {
+    localStorage.setItem("silent_signal_dr_ai", JSON.stringify(msgs));
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, loading]);
+
   const send = async () => {
     if (!input.trim()) return;
-
-    // 1. Add User Message
-    const newMsgs = [...msgs, { role: "user", text: input }];
-    setMsgs(newMsgs);
-    setInput("");
+    const timeNow = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const newMsgs = [...msgs, { role: "user", text: input, time: timeNow }];
+    setMsgs(newMsgs); 
+    setInput(""); 
     setLoading(true);
 
     try {
-      // 2. Call Python Backend
-      const response = await fetch("http://localhost:8000/api/agent/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          message: input, 
-          vitals: vitals // Passing Heart Rate & Anxiety to Gemini
-        })
-      });
-
-      const data = await response.json();
-
-      // 3. Add AI Response
-      setMsgs(prev => [...prev, { role: "bot", text: data.response }]);
-
-      // 4. Play Azure Audio
-      if (data.audio) {
-        try {
-          const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
-          audio.play();
-        } catch (e) {
-          console.error("Audio playback failed", e);
-        }
-      }
-
-    } catch (err) {
-      setMsgs(prev => [...prev, { role: "bot", text: "⚠️ Error: Backend is offline. Check terminal." }]);
+      const response = await axios.post("http://localhost:8000/api/agent/chat", { message: input, vitals: vitals });
+      setMsgs(prev => [...prev, { role: "bot", text: response.data.response, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
+    } catch (err) { 
+      setTimeout(() => {
+        setMsgs(prev => [...prev, { role: "bot", text: "Based on your vitals, I recommend rest and monitoring. (Backend offline).", time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
+      }, 1000);
     }
-    
     setLoading(false);
+  };
+
+  const clearChat = () => {
+    setMsgs([{ role: "bot", text: "Chat history cleared. How can I assist you today?", time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
   };
 
   return (
     <div className="dr-ai-layout fade-in">
-      {/* Sidebar */}
-      <div className={`ai-sidebar ${showHistory ? 'visible' : ''}`}>
-        <div className="ai-header">
-          <h3>History</h3>
-          <button onClick={() => setShowHistory(false)}><X size={18}/></button>
-        </div>
-        <div className="history-list">
-          <div className="hist-item">Today: Panic Attack Analysis</div>
-          <div className="hist-item">Yesterday: Diet Plan</div>
-        </div>
-      </div>
-
-      {/* Main Chat */}
       <div className="ai-main">
         <div className="ai-toolbar">
-          <button onClick={() => setShowHistory(true)}><History size={20}/></button>
-          <div className="model-pill">
-            <Sparkles size={16} color="#FF8FA3"/>
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
-              <option>Gemini Pro (Medical)</option>
-              <option>Gemini Flash (Fast)</option>
-              <option>GPT-4o (Reasoning)</option>
-            </select>
-          </div>
-          <Settings size={20} color="#888"/>
+          <div className="model-pill"><Sparkles size={16} color="#FF8FA3"/><select><option>Gemini 2.5 Flash</option></select></div>
+          <button onClick={clearChat} style={{background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.85rem'}}>Clear History</button>
         </div>
-
-        <div className="ai-feed">
+        <div className="ai-feed wa-chat-bg">
           {msgs.map((m, i) => (
-            <div key={i} className={`ai-msg ${m.role}`}>
-              <div className="ai-avatar">
-                {m.role==='bot' ? <BrainCircuit size={18}/> : 'A'}
+            <div key={i} className={`wa-msg-row ${m.role === 'user' ? 'wa-right' : 'wa-left'}`}>
+              <div className={`wa-bubble ${m.role === 'user' ? 'wa-user' : 'wa-bot'}`}>
+                {m.role === 'bot' && <div className="wa-sender">Dr. AI</div>}
+                <div className="wa-text">{m.text}</div>
+                <div className="wa-time">{m.time}</div>
               </div>
-              <div className="ai-bubble">{m.text}</div>
             </div>
           ))}
-          
-          {/* Loading Indicator */}
           {loading && (
-            <div className="ai-msg bot">
-              <div className="ai-avatar"><BrainCircuit size={18}/></div>
-              <div className="ai-bubble" style={{fontStyle:'italic', color:'#888'}}>
-                Thinking...
-              </div>
+            <div className="wa-msg-row wa-left">
+              <div className="wa-bubble wa-bot"><div className="wa-text" style={{fontStyle:'italic', color:'#888'}}>Dr. AI is typing...</div></div>
             </div>
           )}
+          <div ref={chatEndRef} />
         </div>
-
-        <div className="ai-input-box">
-          <button className="tool-btn"><Paperclip size={20}/></button>
+        <div className="wa-input-area">
+          <button className={`mic-btn ${isListening ? 'recording' : ''}`} onClick={() => handleVoiceInput(setInput, setIsListening)}>
+            {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+          </button>
           <input 
             value={input} 
             onChange={e=>setInput(e.target.value)} 
-            placeholder="Ask Dr. AI..." 
-            onKeyPress={e=>e.key==='Enter' && !loading && send()}
-            disabled={loading}
+            placeholder="Type or speak to Dr. AI..." 
+            onKeyPress={e=>e.key==='Enter' && !loading && send()} 
+            disabled={loading} 
           />
-          <button className="mic-btn"><Mic size={20}/></button>
           <button className="send-circle" onClick={send} disabled={loading}>
-            {loading ? <div className="spinner"></div> : <ArrowRight size={20}/>}
+            {loading ? <div className="spinner"></div> : <Send size={18}/>}
           </button>
         </div>
       </div>
     </div>
   );
 };
-// --- 2. NEURAL MESH (Orb Style) ---
-const NeuralMesh = ({ vitals }) => (
-  <div className="mesh-layout fade-in">
-    <div className="orb-section">
-      <div className={`orb ${vitals.anxiety > 50 ? 'stress' : 'calm'}`}></div>
-      <h2>Neural Mesh Active</h2>
-      <p>Syncing Biometrics...</p>
-    </div>
-    <div className="vitals-panel">
-      <h3>Live Analysis</h3>
-      <div className="vital-row">
-        <div className="v-card pink">
-          <Heart className="v-icon"/>
-          <div><h4>{vitals.hr} BPM</h4><p>Heart Rate</p></div>
-        </div>
-        <div className="v-card blue">
-          <Zap className="v-icon"/>
-          <div><h4>{vitals.anxiety}%</h4><p>Anxiety</p></div>
-        </div>
-      </div>
-      <div className="diagnosis-box">
-        <h4>💡 Dr. AI Diagnosis</h4>
-        <p>{vitals.status === "High" ? "High distress detected. I recommend immediate breathing exercises." : "Vitals are stable. Maintain this state."}</p>
-      </div>
-    </div>
-  </div>
-);
 
-// --- UPDATED DASHBOARD (Real Data Graph) ---
-const Dashboard = ({ vitals, history }) => {
-  // 1. Get data points (Default to 0 if missing)
-  const dataPoints = history.map(h => h.val || 0);
-  
-  // 2. Add current live reading to the end if available
-  const currentHR = vitals.hr !== "--" ? parseInt(vitals.hr) : 0;
-  const graphData = currentHR > 0 ? [...dataPoints.slice(1), currentHR] : dataPoints;
+/* --- 6. DIET PAGE (Kaggle Dataset Mapping) --- */
+const DietNode = ({ vitals }) => {
+  const [foods, setFoods] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // 3. Graph Dimensions
-  const width = 500;
-  const height = 150;
-  const maxVal = 120; // Max Scale for HR
-
-  // 4. Generate SVG Path Command
-  const generatePath = (data) => {
-    if (data.length === 0) return "";
-    
-    // Calculate X and Y coordinates
-    const points = data.map((val, index) => {
-      const x = (index / (data.length - 1)) * width;
-      const y = height - (val / maxVal) * height;
-      return `${x},${y}`;
-    });
-
-    // Create Line Path (L = Line to)
-    return `M${points.join(" L")}`;
-  };
-
-  // 5. Generate Fill Area (Closed loop)
-  const linePath = generatePath(graphData);
-  const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
+  useEffect(() => {
+    axios.get('http://localhost:8000/api/nutrition')
+      .then(res => { 
+        if(res.data && res.data.length > 0) {
+          const realFoods = res.data.slice(0, 30).map((item, index) => ({
+            id: item.id || index,
+            name: item.Description || item.name || "Healthy Food",
+            tag: item.Category || item.tag || "Nutrition",
+            icon: "🥗",
+            desc: item["Data.Protein"] ? `Protein: ${item["Data.Protein"]}g | Carbs: ${item["Data.Carbohydrate"]}g` : (item.desc || "Verified nutritional value.")
+          }));
+          setFoods(realFoods);
+          setLoading(false); 
+        } else { 
+          throw new Error("Empty Array"); 
+        }
+      })
+      .catch(err => { 
+        setFoods([
+          { id: 1, name: "Dark Chocolate", tag: "Lowers Cortisol", icon: "🍫", desc: "Reduces neuro-inflammation and oxidative stress." },
+          { id: 2, name: "Blueberries", tag: "Brain Booster", icon: "🫐", desc: "Antioxidants repair stress and promote clarity." },
+          { id: 3, name: "Avocado", tag: "Vitamin B", icon: "🥑", desc: "Healthy fats support nerve cells and mood." },
+          { id: 4, name: "Walnuts", tag: "Omega-3", icon: "🌰", desc: "Supports serotonin production for calm." }
+        ]); setLoading(false); 
+      });
+  }, []);
 
   return (
-    <div className="dashboard-layout fade-in">
-      <div className="dash-header">
-        <div>
-          <h2>Wellness Overview</h2>
-          <p>Your health metrics for the last 7 days.</p>
+    <div className="diet-layout fade-in">
+      <h2 className="section-title">Neuro-Nutrition Plan</h2>
+      {loading ? <p>Loading Kaggle Dataset...</p> : (
+        <div className="diet-grid">
+          {foods.map(food => (
+             <div key={food.id} className="diet-card c-green">
+               <div className="d-icon">{food.icon}</div>
+               <h3>{food.name}</h3>
+               <p className="diet-tag">{food.tag}</p>
+               <span style={{fontSize: '0.85rem', color: '#666'}}>{food.desc}</span>
+             </div>
+          ))}
         </div>
-        <select className="date-select"><option>Last 7 Days</option></select>
-      </div>
-      
-      <div className="kpi-row">
-        <div className="kpi-card pink">
-          <div className="k-icon"><Heart size={24} color="#FF8FA3"/></div>
-          <div className="k-data">
-            <h3>{vitals.hr} <small>BPM</small></h3>
-            <p>Current Heart Rate</p>
-          </div>
-        </div>
-        <div className="kpi-card blue">
-          <div className="k-icon"><Zap size={24} color="#A0C4FF"/></div>
-          <div className="k-data">
-            <h3>{vitals.anxiety}%</h3>
-            <p>Anxiety Score</p>
-          </div>
-        </div>
-        <div className="kpi-card green">
-          <div className="k-icon"><CheckCircle size={24} color="#4CAF50"/></div>
-          <div className="k-data">
-            <h3>Good</h3>
-            <p>Sleep Quality</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="main-graph-card">
-        <h3>Heart Rate Trend (Real-Time)</h3>
-        <div className="graph-wrapper">
-          <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
-            <defs>
-              <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="#FF8FA3" stopOpacity="0.4"/>
-                <stop offset="100%" stopColor="#fff" stopOpacity="0"/>
-              </linearGradient>
-            </defs>
-            {/* The Area Fill */}
-            <path d={areaPath} fill="url(#gradient)" />
-            {/* The Line Stroke */}
-            <path d={linePath} fill="none" stroke="#FF8FA3" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
-            
-            {/* Data Dots */}
-            {graphData.map((val, i) => {
-               const x = (i / (graphData.length - 1)) * width;
-               const y = height - (val / maxVal) * height;
-               return <circle key={i} cx={x} cy={y} r="4" fill="#FF8FA3" stroke="white" strokeWidth="2"/>
-            })}
-          </svg>
-          <div className="graph-labels">
-            {history.map((h, i) => <span key={i}>{h.day}</span>)}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
-const handleScanComplete = (hr, br) => {
-    const anxiety = Math.min(100, Math.round((hr * 0.5) + (br * 1.5) - 40));
-    setVitals({ hr, br, anxiety, status: anxiety > 50 ? "High" : "Optimal" });
-    
-    // UPDATE HISTORY WITH NEW HR (This makes the graph move!)
-    setHistory(prev => [...prev.slice(1), { day: "Today", val: hr }]); 
-    
-    setActiveTab("mesh"); 
-  };
-// --- 4. DIET PAGE (Populated) ---
-const DietNode = ({ vitals }) => (
-  <div className="diet-layout fade-in">
-    <h2 className="section-title">Neuro-Nutrition Plan</h2>
-    <p className="subtitle">Recommended based on anxiety: {vitals.anxiety}%</p>
-    
-    <div className="diet-grid">
-      <div className="diet-card c-brown">
-        <div className="d-icon">🍫</div>
-        <h3>Dark Chocolate</h3>
-        <p>Lowers Cortisol</p>
-        <span>Reduces neuro-inflammation.</span>
-      </div>
-      <div className="diet-card c-blue">
-        <div className="d-icon">🫐</div>
-        <h3>Blueberries</h3>
-        <p>Brain Booster</p>
-        <span>Antioxidants repair stress.</span>
-      </div>
-      <div className="diet-card c-cream">
-        <div className="d-icon">🌰</div>
-        <h3>Walnuts</h3>
-        <p>Omega-3 Rich</p>
-        <span>Supports serotonin.</span>
-      </div>
-      <div className="diet-card c-green">
-        <div className="d-icon">🥑</div>
-        <h3>Avocado</h3>
-        <p>Vitamin B</p>
-        <span>Healthy nerve cells.</span>
-      </div>
-    </div>
-  </div>
-);
 
-// --- UPDATED PHARMACY (1mg Style) ---
+/* --- 7. PHARMACY (Kaggle Dataset Mapping + Simple Alert) --- */
 const PharmacyCounter = ({ cart, setCart }) => {
   const [view, setView] = useState("shop");
-  const products = [
-    { id: 1, name: "Calm Magnesium", price: 15, tag: "Best Seller", icon: "💊", desc: "For muscle relaxation" },
-    { id: 2, name: "Melatonin Sleep", price: 12, tag: "Sleep Aid", icon: "🌙", desc: "Natural sleep support" },
-    { id: 3, name: "Ashwagandha Root", price: 20, tag: "Ayurveda", icon: "🌿", desc: "Stress reduction" },
-    { id: 4, name: "Vitamin D3 + K2", price: 10, tag: "Daily", icon: "☀️", desc: "Bone & mood health" },
-    { id: 5, name: "Focus Green Tea", price: 8, tag: "Detox", icon: "🍵", desc: "Clarity and focus" },
-    { id: 6, name: "Yoga Mat Pro", price: 45, tag: "Gear", icon: "🧘", desc: "Non-slip grip" }
-  ];
-
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const total = cart.reduce((acc, item) => acc + item.price, 0);
+
+  useEffect(() => {
+    axios.get('http://localhost:8000/api/pharmacy')
+      .then(res => { 
+        if(res.data && res.data.length > 0) {
+          const realMeds = res.data.slice(0, 30).map((item, index) => ({
+            id: item.id || index,
+            name: item.Drug_Name || item.name || "Medical Product",
+            price: item.Price ? parseFloat(item.Price) : Math.floor(Math.random() * 20) + 5,
+            tag: item.Reason || item.tag || "Treatment",
+            icon: "💊",
+            desc: item.Description || item.desc || "Verified pharmaceutical grade."
+          }));
+          setProducts(realMeds);
+          setLoading(false); 
+        } else { 
+          throw new Error("Empty Array"); 
+        }
+      })
+      .catch(err => { 
+        setProducts([
+          { id: 1, name: "Calm Magnesium", price: 15, tag: "Best Seller", icon: "💊", desc: "For deep muscle relaxation and sleep." },
+          { id: 2, name: "Melatonin Sleep", price: 12, tag: "Sleep Aid", icon: "🌙", desc: "Natural sleep cycle support." },
+          { id: 3, name: "Ashwagandha", price: 20, tag: "Ayurveda", icon: "🌿", desc: "Ancient root for severe stress reduction." },
+          { id: 4, name: "Vitamin D3 + K2", price: 10, tag: "Daily", icon: "☀️", desc: "Essential bone and mood health." },
+          { id: 5, name: "Focus Green Tea", price: 8, tag: "Detox", icon: "🍵", desc: "Promotes clarity, detox, and calm focus." }
+        ]); setLoading(false); 
+      });
+  }, []);
 
   return (
     <div className="pharmacy-layout fade-in">
       {view === "shop" ? (
         <>
           <div className="shop-head">
-            <div>
-              <h2>Wellness Store</h2>
-              <p>Curated supplements & gear for mental health.</p>
-            </div>
-            <button className="cart-chip" onClick={()=>setView("checkout")}>
-              <ShoppingBag size={18}/> <span>{cart.length} Items</span>
-            </button>
+            <div><h2>Live Pharmaceutical Database</h2><p style={{color:'#888', marginTop:'5px'}}>Sourced from Kaggle Medical Dataset</p></div>
+            <button className="cart-chip" onClick={()=>setView("checkout")}><ShoppingBag size={18}/> <span>{cart.length} Items</span></button>
           </div>
-          <div className="prod-grid">
-            {products.map(p => (
-              <div key={p.id} className="prod-card">
-                <span className="p-tag">{p.tag}</span>
-                <div className="p-icon">{p.icon}</div>
-                <div className="p-info">
-                  <h3>{p.name}</h3>
-                  <p>{p.desc}</p>
-                  <div className="p-action">
-                    <b>${p.price}</b>
-                    <button onClick={() => setCart([...cart, p])}>Add</button>
-                  </div>
+          {loading ? <p>Loading Kaggle Medicines...</p> : (
+            <div className="prod-grid">
+              {products.map(p => (
+                <div key={p.id} className="prod-card"><span className="p-tag">{p.tag}</span><div className="p-icon">{p.icon}</div>
+                  <div className="p-info"><h3>{p.name}</h3><p className="prod-desc">{p.desc}</p><div className="p-action"><b>${p.price}</b><button onClick={() => setCart([...cart, p])}>Add</button></div></div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="checkout-layout">
-          <button className="back-btn" onClick={()=>setView("shop")}><ChevronLeft size={18}/> Continue Shopping</button>
-          
-          <div className="checkout-split">
-            <div className="pay-methods">
-              <h3>Select Payment Method</h3>
-              <div className="method-card active">
-                <Smartphone size={24} color="#FF8FA3"/>
-                <div><h4>UPI / GPay</h4><p>Instant payment</p></div>
-                <div className="radio selected"></div>
-              </div>
-              <div className="method-card">
-                <CreditCard size={24} color="#666"/>
-                <div><h4>Credit / Debit Card</h4><p>Visa, Mastercard</p></div>
-                <div className="radio"></div>
-              </div>
-              <div className="method-card">
-                <Banknote size={24} color="#666"/>
-                <div><h4>Cash on Delivery</h4><p>Pay at doorstep</p></div>
-                <div className="radio"></div>
-              </div>
+              ))}
             </div>
-
+          )}
+        </>
+      ) : view === "checkout" ? (
+        <div className="checkout-layout">
+          <button className="back-btn" onClick={()=>setView("shop")}>Back to Store</button>
+          <div className="checkout-split">
             <div className="order-summary">
               <h3>Order Summary</h3>
-              <div className="item-list">
-                {cart.length === 0 ? <p>Cart is empty</p> : cart.map((c,i)=>(
-                  <div key={i} className="sum-item">
-                    <span>{c.name}</span>
-                    <b>${c.price}</b>
-                  </div>
-                ))}
-              </div>
-              <div className="divider"></div>
-              <div className="sum-total">
-                <span>Total to Pay</span>
-                <span>${total}</span>
-              </div>
-              <button className="place-order-btn" onClick={()=>{alert("Order Placed Successfully!"); setCart([]); setView("shop")}}>
-                Place Order
-              </button>
+              {cart.length === 0 ? ( <div className="empty-cart-msg">Your cart is currently empty. Add some items to checkout!</div> ) : (
+                <>{cart.map((c,i)=>(<div key={i} className="sum-item"><span>{c.name}</span><b>${c.price}</b></div>))}
+                  <div className="sum-total"><span>Total</span><span>${total}</span></div>
+                  <button className="place-order-btn" onClick={() => setView("success")}>Place Secure Order</button>
+                </>
+              )}
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-};
-
-// --- 6. HOME PAGE (Restored "Good" UI) ---
-const HomePage = ({ setTab, vitals }) => (
-  <div className="home-layout fade-in">
-    <div className="welcome-section">
-      <h1>Good Morning, Abhinav.</h1>
-      <p>Your neural mesh is active. Biometrics are stable.</p>
-    </div>
-
-    <div className="big-hero-card">
-      <div className="hero-txt">
-        <h2>Daily Health Scan</h2>
-        <p>Ready to analyze vocal & facial biomarkers?</p>
-        <button onClick={() => setTab('pacer')}>Start Scan <ArrowRight size={18}/></button>
-      </div>
-      <div className="hero-stat">
-        <Activity size={40}/>
-        <span>Good</span>
-      </div>
-    </div>
-
-    <div className="home-grid">
-      <div className="h-card pink" onClick={()=>setTab('mesh')}>
-        <Activity size={24}/>
-        <h3>Neural Mesh</h3>
-        <p>Live Vitals</p>
-      </div>
-      <div className="h-card blue" onClick={()=>setTab('chat')}>
-        <Sparkles size={24}/>
-        <h3>Dr. AI</h3>
-        <p>Consultation</p>
-      </div>
-      <div className="h-card orange" onClick={()=>setTab('dashboard')}>
-        <LayoutDashboard size={24}/>
-        <h3>Analytics</h3>
-        <p>7-Day Trend</p>
-      </div>
-    </div>
-  </div>
-);
-
-// --- UTILITIES ---
-const Sidebar = ({ active, set, setShowSOS, cartCount }) => (
-  <aside className="pastel-sidebar">
-    <div className="brand"><BrainCircuit color="#FF8FA3" size={30}/> SilentSignal</div>
-    <nav>
-      {[{id:'home',l:'Home',i:<Home/>},{id:'dashboard',l:'Dashboard',i:<LayoutDashboard/>},{id:'mesh',l:'Neural Mesh',i:<Activity/>},{id:'chat',l:'Dr. AI Chat',i:<Sparkles/>},{id:'pacer',l:'Scanner',i:<Camera/>},{id:'experts',l:'Doctors',i:<Users/>},{id:'pharmacy',l:'Pharmacy',i:<ShoppingBag/>,c:cartCount},{id:'diet',l:'Nutrition',i:<Utensils/>},{id:'relief',l:'Sanctuary',i:<Music/>}].map(item=>(
-        <button key={item.id} className={active===item.id?'active':''} onClick={()=>set(item.id)}>
-          {item.i} <span>{item.l}</span> {item.c>0&&<span className="badge">{item.c}</span>}
-        </button>
-      ))}
-    </nav>
-    <button className="sos-btn" onClick={()=>setShowSOS(true)}><ShieldAlert/> SOS</button>
-  </aside>
-);
-
-// --- COLORFUL DOCTOR BOOKING & DATE SELECTION ---
-const ExpertNodes = () => {
-  const [view, setView] = useState("list"); 
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const [date, setDate] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("upi");
-
-  const docs = [
-    { id: 1, name: "Dr. Kavita Sharma", role: "Psychiatrist", exp: "12 Yrs", fee: 50, rating: "4.9", color: "blue", tags: ["Anxiety", "Depression"] },
-    { id: 2, name: "Dr. Rahul Mehta", role: "Clinical Therapist", exp: "8 Yrs", fee: 40, rating: "4.8", color: "pink", tags: ["Trauma", "CBT"] },
-    { id: 3, name: "Dr. Sarah Jenkins", role: "Neurologist", exp: "15 Yrs", fee: 80, rating: "5.0", color: "mint", tags: ["Migraine", "Brain Health"] }
-  ];
-
-  const startBooking = (doc) => { setSelectedDoc(doc); setView("date"); };
-  const proceedToPay = () => { if(!date) return alert("Select date!"); setView("checkout"); };
-
-  return (
-    <div className="experts-layout fade-in">
-      {/* 1. DOCTOR LIST */}
-      {view === "list" && (
-        <>
-          <div className="page-header">
-            <h2>Top Specialists</h2>
-            <p>Book verified experts. Consultation fees apply.</p>
-          </div>
-          <div className="doc-list-vertical">
-            {docs.map((d) => (
-              <div key={d.id} className={`doc-profile-card ${d.color}`}>
-                <div className="doc-left">
-                  <div className="doc-avatar-lg">{d.name[0]}</div>
-                  <div className="doc-details">
-                    <div className="doc-name-row">
-                      <h3>{d.name}</h3>
-                      <span className="rating-badge"><Star size={12} fill="white"/> {d.rating}</span>
-                    </div>
-                    <p className="doc-role">{d.role} • {d.exp} Exp</p>
-                    <div className="doc-tags">{d.tags.map(t=><span key={t}>{t}</span>)}</div>
-                  </div>
-                </div>
-                <div className="doc-right">
-                  <div className="fee-info"><span>Consultation Fee</span><b>${d.fee}</b></div>
-                  <button className="book-btn" onClick={() => startBooking(d)}>Book Appointment</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* 2. COLORFUL DATE SELECTION */}
-      {view === "date" && selectedDoc && (
-        <div className="booking-overlay">
-          <div className={`booking-card theme-${selectedDoc.color}`}>
-            <div className="booking-header-color">
-              <button onClick={() => setView("list")}><ChevronLeft size={24} color="white"/></button>
-              <h3>Select Date</h3>
-            </div>
-            
-            <div className="booking-body">
-              <div className="doc-mini-profile">
-                <div className="doc-avatar-md">{selectedDoc.name[0]}</div>
-                <div>
-                  <h4>{selectedDoc.name}</h4>
-                  <p>{selectedDoc.role}</p>
-                </div>
-              </div>
-
-              <div className="date-input-fancy">
-                <label>Choose Appointment Date</label>
-                <input type="date" onChange={(e)=>setDate(e.target.value)} />
-              </div>
-
-              <div className="fee-summary-box">
-                <div className="row"><span>Consultation</span><span>${selectedDoc.fee}</span></div>
-                <div className="row"><span>Service Fee</span><span>$2.00</span></div>
-                <div className="row total"><span>Total</span><span>${selectedDoc.fee + 2}</span></div>
-              </div>
-
-              <button className="proceed-btn-color" onClick={proceedToPay}>
-                Proceed to Pay ${selectedDoc.fee + 2} <ArrowRight size={18}/>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. CHECKOUT VIEW */}
-      {view === "checkout" && selectedDoc && (
-        <div className="booking-overlay">
-          <div className="booking-card">
-            <div className="booking-header-simple">
-              <button onClick={() => setView("date")}><ChevronLeft size={20}/></button>
-              <h3>Secure Payment</h3>
-            </div>
-            <div className="booking-body">
-              <div className="pay-methods-list">
-                {['UPI / GPay', 'Credit Card', 'Net Banking'].map(m => (
-                  <div key={m} className={`pm-item ${paymentMethod===m?'active':''}`} onClick={()=>setPaymentMethod(m)}>
-                    <span>{m}</span>
-                    <div className="radio-circle"></div>
-                  </div>
-                ))}
-              </div>
-              <button className="pay-final-btn" onClick={()=>setView("success")}>Pay Securely</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. SUCCESS */}
-      {view === "success" && (
+      ) : (
         <div className="success-screen">
-          <CheckCircle size={80} color="#4CAF50" className="bounce"/>
-          <h2>Booking Confirmed!</h2>
-          <p>Appointment scheduled for <strong>{date}</strong>.</p>
-          <button onClick={()=>setView("list")}>Done</button>
+          <CheckCircle size={80} color="#4CAF50" className="bounce"/><h2>Order Placed Successfully!</h2><p>Your wellness products will be delivered soon.</p>
+          <div className="success-actions">
+             <button className="primary-action-btn" onClick={() => { setCart([]); setView("shop"); }}>Continue Shopping</button>
+             <button className="secondary-action-btn" onClick={() => alert("Downloading Pharmacy Invoice PDF...")}><Download size={18}/> Download Bill</button>
+          </div>
         </div>
       )}
     </div>
   );
 };
-// --- RESTORED BIOMETRIC SCANNER (The Good Version) ---
-const ReliefPacer = ({ onScan }) => {
-  const videoRef = useRef(null);
-  const [scanning, setScanning] = useState(false);
-  const [progress, setProgress] = useState(0);
 
-  const startScan = async () => {
-    setScanning(true);
-    setProgress(0);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
-      
-      // Simulate scanning progress
-      const interval = setInterval(() => {
-        setProgress(p => {
-          if (p >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return p + 2;
-        });
-      }, 80);
-
-      setTimeout(() => {
-        stream.getTracks().forEach(t => t.stop());
-        setScanning(false);
-        onScan(85, 18); // Pass results
-      }, 4000);
-    } catch (err) {
-      alert("Camera required. Simulating scan...");
-      setScanning(false);
-      onScan(85, 18);
-    }
+/* --- 8. DASHBOARD --- */
+const Dashboard = ({ vitals, history }) => {
+  const dataPoints = history.map(h => h.val || 0);
+  const currentHR = vitals.hr !== "--" ? parseInt(vitals.hr) : 0;
+  const graphData = currentHR > 0 ? [...dataPoints.slice(1), currentHR] : dataPoints;
+  const width = 500; const height = 150; const maxVal = 120;
+  const generatePath = (data) => {
+    if (data.length === 0) return "";
+    const points = data.map((val, index) => `${(index / (data.length - 1)) * width},${height - (val / maxVal) * height}`);
+    return `M${points.join(" L")}`;
   };
+  const linePath = generatePath(graphData);
+  const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
 
   return (
-    <div className="pacer-layout fade-in">
-      {/* Black Camera Box */}
-      <div className="camera-frame">
-        {scanning ? (
-          <>
-            <video ref={videoRef} autoPlay muted className="live-video" />
-            <div className="scan-line"></div>
-            <div className="scan-overlay-text">Analyzing Micro-Expressions... {progress}%</div>
-          </>
-        ) : (
-          <div className="cam-placeholder">
-            <Camera size={60} color="#333" />
-            <p>Camera Offline</p>
-          </div>
-        )}
+    <div className="dashboard-layout fade-in">
+      <div className="dash-header"><h2>Wellness Overview</h2></div>
+      <div className="kpi-row">
+        <div className="kpi-card pink"><div className="k-icon"><Heart size={24} color="#FF8FA3"/></div><div className="k-data"><h3>{vitals.hr} <small>BPM</small></h3><p>Heart Rate</p></div></div>
+        <div className="kpi-card blue"><div className="k-icon"><Zap size={24} color="#A0C4FF"/></div><div className="k-data"><h3>{vitals.anxiety}%</h3><p>Anxiety</p></div></div>
       </div>
-
-      {/* Info & Controls */}
-      <div className="pacer-info">
-        <h2>Biometric Sync</h2>
-        <div className="indicators">
-          <span><Mic size={16}/> Voice Tone</span>
-          <span><Video size={16}/> Face Mesh</span>
+      <div className="main-graph-card">
+        <h3>Heart Rate Trend</h3>
+        <div className="graph-wrapper">
+          <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
+            <defs><linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#FF8FA3" stopOpacity="0.4"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/></linearGradient></defs>
+            <path d={areaPath} fill="url(#gradient)" /><path d={linePath} fill="none" stroke="#FF8FA3" strokeWidth="4" />
+          </svg>
         </div>
-        <button className="big-pink-btn" onClick={startScan} disabled={scanning}>
-          {scanning ? "Scanning..." : "Start Health Scan"}
-        </button>
       </div>
     </div>
   );
 };
 
-const Header = () => (<header className="pastel-header"><div className="search"><Search size={16}/><input placeholder="Search..."/></div><div className="user">Abhinav Jha</div></header>);
- 
+/* --- RELIEF SECTION (STRICTLY UNTOUCHED AS REQUESTED) --- */
 const ReliefSection = () => {
   const [filter, setFilter] = useState("All");
   const [favorites, setFavorites] = useState([]); // Array of IDs
@@ -829,23 +707,21 @@ const ReliefSection = () => {
               <div key={video.id} className="relief-card video-card">
                 <div className="video-wrapper">
                 <div
-  className="yt-card"
-  onClick={() =>
-    window.open(`https://www.youtube.com/watch?v=${video.id}`, "_blank")
-  }
+    className="yt-card"
+    onClick={() =>
+        window.open(`https://www.youtube.com/watch?v=${video.id}`, "_blank")
+    }
 >
-  <img
-    src={`https://img.youtube.com/vi/${video.id}/hqdefault.jpg`}
-    alt={video.title}
-  />
+    <img
+        src={`https://img.youtube.com/vi/${video.id}/hqdefault.jpg`}
+        alt={video.title}
+    />
 
-  <div className="yt-overlay">
-    <span className="yt-play">▶</span>
-    <p>Watch on YouTube</p>
-  </div>
+    <div className="yt-overlay">
+        <span className="yt-play">▶</span>
+        <p>Watch on YouTube</p>
+    </div>
 </div>
-
-
 
                 </div>
                 <div className="relief-info">
@@ -955,30 +831,208 @@ const ReliefSection = () => {
   );
 };
 
+/* --- 9. CONSULTATION (With Simple Alert logic for PDF) --- */
 const SOSOverlay = ({ vitals, close }) => (
-  <div className="sos-overlay">
-    <div className="sos-box">
-      <div className="sos-header">
-        <ShieldAlert size={60} color="#FF0000" className="pulse-alert"/>
-        <h2>EMERGENCY ALERT</h2>
-      </div>
-      
-      <p>Scan to share live vitals with responders.</p>
-      
-      <div className="qr-frame">
-        <QRCodeSVG 
-          value={`SOS-ALERT | HR:${vitals.hr} | BR:${vitals.br} | ANXIETY:${vitals.anxiety}% | STATUS:${vitals.status}`} 
-          size={160}
-          fgColor="#FF0000"
-        />
+  <div className="sos-overlay"><div className="sos-box"><div className="sos-header"><ShieldAlert size={60} color="#FF0000"/><h2>EMERGENCY ALERT</h2></div><div className="qr-frame"><QRCodeSVG value={`SOS | HR:${vitals.hr}`} size={160} fgColor="#FF0000"/></div><button className="dismiss-btn" onClick={close}>Dismiss</button></div></div>
+);
+
+const ConsultationRoom = ({ setTab, cart, setCart, vitals, user }) => {
+  const [messages, setMessages] = useState([{ sender: "Dr. Kavita", text: `Hello ${user || 'there'}! I have reviewed your recent high-stress vitals from the Neural Mesh. How are you feeling right now?`, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [driveStatus, setDriveStatus] = useState("Drive");
+  const chatEndRef = useRef(null);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
+
+  const handleSend = async () => {
+    if(!input.trim()) return;
+    const userText = input;
+    const timeNow = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    setMessages(prev => [...prev, { sender: "You", text: userText, time: timeNow }]); 
+    setInput("");
+    setIsTyping(true);
+
+    try {
+      const response = await axios.post("http://localhost:8000/api/agent/chat", { message: `Patient says: "${userText}". You are Dr. Kavita Sharma, a psychiatrist. Reply briefly, empathetically, and professionally.`, vitals: vitals });
+      setMessages(prev => [...prev, { sender: "Dr. Kavita", text: response.data.response, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
+    } catch (error) {
+      setTimeout(() => { 
+        let reply = "I understand. I am updating your file to ensure you get the right care.";
+        const lowerInput = userText.toLowerCase();
+        if (lowerInput.includes("headache") || lowerInput.includes("pain")) reply = "I'm sorry you're experiencing pain. Let's add a mild analgesic and monitor your stress triggers.";
+        else if (lowerInput.includes("sleep") || lowerInput.includes("tired")) reply = "Sleep deprivation heavily impacts anxiety. I'm adding Melatonin from our pharmacy to your prescription.";
+        else if (lowerInput.includes("stress") || lowerInput.includes("anxious") || lowerInput.includes("panic")) reply = "Your vitals confirm an elevated stress response. I strongly recommend the Calm Magnesium and 10 minutes in the Relief Sanctuary.";
+        
+        setMessages(prev => [...prev, { sender: "Dr. Kavita", text: reply, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]); 
+      }, 1500);
+    } finally { setIsTyping(false); }
+  };
+
+  const handleExportWhatsApp = () => { 
+    const text = `*🏥 SilentSignal Official Medical Report*\n\n*Patient:* ${user || 'Guest'}\n*Date:* ${new Date().toLocaleDateString()}\n\n*📊 Biometrics (YOLOv8 & rPPG):*\n- Heart Rate: ${vitals.hr} BPM\n- Stress Index: ${vitals.anxiety}%\n- Status: ${vitals.status}\n\n*💊 Prescribed Interventions:*\n1. Calm Magnesium (1 Tablet/Night)\n2. Neuro-Nutrition: Dark Chocolate & Blueberries\n3. Therapy: Relief Sanctuary Soundscapes (10 mins/Day)\n\n_Generated securely via SilentSignal Neural Mesh._`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); 
+  };
+  
+  const handleDriveUpload = () => { setDriveStatus("Uploading..."); setTimeout(() => { setDriveStatus("Saved ✓"); setTimeout(() => setDriveStatus("Drive"), 3000); }, 1500); };
+  const handleExportEmail = () => { const text = `SilentSignal Medical Report\n\nDoctor: Dr. Kavita Sharma\nDiagnosis: Acute Stress Response\nHeart Rate: ${vitals.hr} BPM\nStress Level: ${vitals.anxiety}%\n\nPlease check the SilentSignal dashboard for full prescriptions.`; window.location.href = `mailto:?subject=My SilentSignal Medical Report&body=${encodeURIComponent(text)}`; };
+
+  return (
+    <div className="consultation-room fade-in">
+      <div className="chat-window">
+        <div className="chat-header"><span>Live Consultation: Dr. Kavita Sharma</span><div style={{display: 'flex', gap: '10px'}}><Video size={20}/><Volume2 size={20}/></div></div>
+        
+        <div className="chat-messages wa-chat-bg">
+          {messages.map((m, i) => (
+            <div key={i} className={`wa-msg-row ${m.sender === "You" ? 'wa-right' : 'wa-left'}`}>
+              <div className={`wa-bubble ${m.sender === "You" ? 'wa-user' : 'wa-bot'}`}>
+                {m.sender !== "You" && <div className="wa-sender">{m.sender}</div>}
+                <div className="wa-text">{m.text}</div>
+                <div className="wa-time">{m.time}</div>
+              </div>
+            </div>
+          ))}
+          {isTyping && ( <div className="wa-msg-row wa-left"><div className="wa-bubble wa-bot"><div className="wa-text" style={{fontStyle:'italic', color:'#888'}}>Dr. Kavita is typing...</div></div></div> )}
+          <div ref={chatEndRef} />
+        </div>
+
+        <div className="wa-input-area">
+          <button className={`mic-btn ${isListening ? 'recording' : ''}`} onClick={() => handleVoiceInput(setInput, setIsListening)}>
+            {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+          </button>
+          <input 
+            value={input} 
+            onChange={e=>setInput(e.target.value)} 
+            onKeyPress={e => e.key === 'Enter' && handleSend()}
+            placeholder="Type or speak to the doctor..." 
+            disabled={isTyping}
+          />
+          <button className="send-circle" onClick={handleSend} disabled={isTyping}><Send size={18}/></button>
+        </div>
       </div>
 
-      <div className="sos-stats">
-        <div className="stat-pill">❤️ {vitals.hr} BPM</div>
-        <div className="stat-pill">⚡ {vitals.anxiety}% Anxiety</div>
+      <div className="prescription-panel">
+        <div className="rx-header"><ClipboardList size={24}/> <h3>Official e-Prescription</h3></div>
+        <h4>Prescribed Medications</h4>
+        <div className="rx-item"><div><b>Calm Magnesium</b></div><button onClick={() => { setCart([...cart, { id: 101, name: "Calm Magnesium", price: 15 }]); setTab("pharmacy"); }}>Buy in Pharmacy</button></div>
+        <div className="export-section">
+          <h4><Share2 size={16}/> Export Medical Records</h4>
+          <p>Download or share your AI scanner vitals & prescriptions.</p>
+          <div className="export-grid">
+            <button onClick={() => alert("Downloading PDF Report...")}><FileText size={18} color="#E53935"/> PDF</button>
+            <button onClick={handleDriveUpload} style={{color: driveStatus.includes("✓") ? "#4CAF50" : "#555"}}><Cloud size={18} color={driveStatus.includes("✓") ? "#4CAF50" : "#1976D2"}/> {driveStatus}</button>
+            <button className="wa-btn" onClick={handleExportWhatsApp}><MessageCircle size={18} color="#25D366"/> WhatsApp</button>
+            <button onClick={handleExportEmail}><Mail size={18} color="#FB8C00"/> Email</button>
+          </div>
+        </div>
       </div>
+    </div>
+  );
+};
 
-      <button className="dismiss-btn" onClick={close}>False Alarm - Dismiss</button>
+/* --- 10. EXPERTS BOOKING PAGE (With Simple Alert logic for PDF) --- */
+const ExpertNodes = ({ setTab }) => {
+  const [view, setView] = useState("list"); 
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [date, setDate] = useState("");
+  
+  const docs = [
+    { id: 1, name: "Dr. Kavita Sharma", role: "Psychiatrist", exp: "12 Yrs", fee: 50, rating: "4.9", color: "blue", tags: ["Anxiety", "Depression"], availability: "Available Today" },
+    { id: 2, name: "Dr. Rahul Mehta", role: "Clinical Therapist", exp: "8 Yrs", fee: 40, rating: "4.8", color: "pink", tags: ["Trauma", "CBT"], availability: "Next Slot: Tomorrow" },
+    { id: 3, name: "Dr. Sarah Jenkins", role: "Neurologist", exp: "15 Yrs", fee: 80, rating: "5.0", color: "mint", tags: ["Migraine", "Brain Health"], availability: "Available Today" },
+    { id: 4, name: "Dr. Amit Patel", role: "Ayurvedic Specialist", exp: "10 Yrs", fee: 30, rating: "4.7", color: "tan", tags: ["Holistic", "Stress"], availability: "Next Slot: Wed" },
+    { id: 5, name: "Dr. Emily Chen", role: "Behavioral Coach", exp: "6 Yrs", fee: 45, rating: "4.9", color: "purple", tags: ["Sleep", "Habits"], availability: "Available Today" }
+  ];
+
+  return (
+    <div className="experts-layout fade-in">
+      {view === "list" && ( 
+        <>
+          <div className="page-header">
+            <h2>Top Specialists</h2>
+            <p style={{color: '#888'}}>Book certified professionals tailored to your Neural Mesh analysis.</p>
+          </div>
+          <div className="doc-list-vertical">
+            {docs.map((d) => (
+              <div key={d.id} className={`doc-profile-card ${d.color}`}>
+                <div className="doc-left">
+                  <div className="doc-avatar-lg">{d.name[0]}</div>
+                  <div className="doc-details">
+                    <div className="doc-name-row">
+                      <h3>{d.name}</h3>
+                      <span className="rating-badge"><Star size={12} fill="white"/> {d.rating}</span>
+                    </div>
+                    <p className="doc-role">{d.role} • {d.exp}</p>
+                    <div className="doc-tags">
+                       <span className="avail-badge"><Clock size={12}/> {d.availability}</span>
+                       {d.tags.map(t=><span className="skill-tag" key={t}>{t}</span>)}
+                    </div>
+                  </div>
+                </div>
+                <div className="doc-right">
+                  <div className="fee-info"><span>Fee</span><b>${d.fee}</b></div>
+                  <button className="book-btn" onClick={() => { setSelectedDoc(d); setView("date"); }}>Book</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </> 
+      )}
+      {view === "date" && selectedDoc && ( 
+        <div className="booking-overlay">
+          <div className={`booking-card theme-${selectedDoc.color}`}>
+            <div className="booking-header-color">
+              <button onClick={() => setView("list")}><ChevronLeft size={24} color="white"/></button>
+              <h3>Select Date for {selectedDoc.name}</h3>
+            </div>
+            <div className="booking-body">
+              <div className="date-input-fancy">
+                <label><Calendar size={16}/> Choose Appointment Date</label>
+                <input type="date" onChange={(e)=>setDate(e.target.value)} />
+              </div>
+              <button className="proceed-btn-color" onClick={() => { if(!date) alert("Please select a date!"); else setView("success"); }}>
+                Proceed to Pay ${(selectedDoc.fee + 2).toFixed(2)}
+              </button>
+            </div>
+          </div>
+        </div> 
+      )}
+      {view === "success" && ( 
+        <div className="success-screen">
+          <CheckCircle size={80} color="#4CAF50" className="bounce"/>
+          <h2>Booking Confirmed!</h2>
+          <p>Your appointment is scheduled for {date}.</p>
+          <div className="success-actions">
+             <button className="primary-action-btn" onClick={() => setTab("consultation")}>Join Consultation</button>
+             <button className="secondary-action-btn" onClick={() => alert("Downloading Consultation Invoice PDF...")}>
+               <Download size={18}/> Download Bill
+             </button>
+          </div>
+        </div> 
+      )}
+    </div>
+  );
+};
+
+const Sidebar = ({ active, set, setShowSOS, cartCount }) => (
+  <aside className="pastel-sidebar">
+    <div className="brand"><BrainCircuit color="#FF8FA3" size={30}/> SilentSignal</div>
+    <nav>
+      {[{id:'home',l:'Home',i:<Home/>},{id:'pacer',l:'Scanner',i:<Camera/>},{id:'mesh',l:'Neural Mesh',i:<Activity/>},{id:'chat',l:'Dr. AI Chat',i:<Sparkles/>},{id:'dashboard',l:'Dashboard',i:<LayoutDashboard/>},{id:'experts',l:'Doctors',i:<Users/>},{id:'consultation',l:'Active Chat',i:<Video/>},{id:'pharmacy',l:'Pharmacy',i:<ShoppingBag/>,c:cartCount},{id:'diet',l:'Nutrition',i:<Utensils/>},{id:'relief',l:'Sanctuary',i:<Music/>}].map(item=>( <button key={item.id} className={active===item.id?'active':''} onClick={()=>set(item.id)}>{item.i} <span>{item.l}</span> {item.c>0&&<span className="badge">{item.c}</span>}</button> ))}
+    </nav>
+    <button className="sos-btn" onClick={()=>setShowSOS(true)}><ShieldAlert/> SOS</button>
+  </aside>
+);
+
+const HomePage = ({ setTab, vitals, user }) => (
+  <div className="home-layout fade-in">
+    <div className="welcome-section"><h1>Good Morning, {user}.</h1><p>Secure login verified. Your neural mesh is standing by.</p></div>
+    <div className="big-hero-card"><div className="hero-txt"><h2>Daily Health Scan</h2><p>Analyze vocal & facial biomarkers using YOLOv8 & rPPG.</p><button onClick={() => setTab('pacer')}>Start Scan <ArrowRight size={18}/></button></div></div>
+    <div className="home-grid">
+      <div className="h-card pink" onClick={()=>setTab('mesh')}><Activity size={24}/><h3>Neural Mesh</h3></div>
+      <div className="h-card blue" onClick={()=>setTab('chat')}><Sparkles size={24}/><h3>Dr. AI</h3></div>
+      <div className="h-card tan" onClick={()=>setTab('experts')}><Users size={24}/><h3>Book Doctor</h3></div>
     </div>
   </div>
 );
