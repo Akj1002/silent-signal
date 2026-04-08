@@ -11,6 +11,13 @@ import random
 import pandas as pd
 from dotenv import load_dotenv
 
+# --- NEW IMPORTS FOR AUTH & EMAIL ---
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+import smtplib
+import ssl
+from email.message import EmailMessage
+
 # --- YOLOv8 INTEGRATION ---
 try:
     from ultralytics import YOLO
@@ -23,6 +30,10 @@ except ImportError:
 # --- CONFIGURATION & ENV ---
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+EMAIL_USER = os.getenv("EMAIL_USER")
+EMAIL_PASS = os.getenv("EMAIL_PASS")
+
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     MODEL_NAME = "gemini-2.5-flash"
@@ -71,7 +82,6 @@ except Exception as e:
     # 2. If Windows blocks the file (Permission Denied), use this built-in Kaggle data instantly!
     print(f"⚠️ CSV Locked by Windows. Using Bulletproof Built-in Database!")
     
-    # Built-in Medicine Data (from your Kaggle set)
     backup_meds = [
         {"Drug_Name": "Calm Magnesium", "Reason": "Stress", "Description": "For deep muscle relaxation and sleep."},
         {"Drug_Name": "Ashwagandha", "Reason": "Ayurveda", "Description": "Ancient root for severe stress reduction."},
@@ -81,7 +91,6 @@ except Exception as e:
         {"Drug_Name": "Focus Green Tea", "Reason": "Detox", "Description": "Promotes clarity, detox, and calm focus."}
     ]
     
-    # Built-in Food Data (from your Kaggle set)
     backup_foods = [
         {"Description": "Dark Chocolate", "Category": "Lowers Cortisol", "Data.Protein": "5", "Data.Carbohydrate": "46"},
         {"Description": "Blueberries", "Category": "Brain Booster", "Data.Protein": "1", "Data.Carbohydrate": "14"},
@@ -89,10 +98,10 @@ except Exception as e:
         {"Description": "Walnuts", "Category": "Omega-3", "Data.Protein": "15", "Data.Carbohydrate": "13"}
     ]
 
-    # Convert them into Pandas DataFrames so the rest of the app doesn't know the difference!
     med_df = pd.DataFrame(backup_meds)
     food_df = pd.DataFrame(backup_foods)
     
+# --- PYDANTIC MODELS ---
 class ChatRequest(BaseModel):
     message: str
     vitals: dict
@@ -105,13 +114,65 @@ class ScanResponse(BaseModel):
     anxiety_score: int
     status: str
 
+class GoogleAuthRequest(BaseModel):
+    token: str
+
+# --- HELPER FUNCTION: SEND WELCOME EMAIL ---
+def send_welcome_email(to_email: str, name: str):
+    if not EMAIL_USER or not EMAIL_PASS:
+        print("⚠️ Email credentials missing in .env, skipping welcome email.")
+        return
+    
+    try:
+        msg = EmailMessage()
+        msg.set_content(f"Hello {name},\n\nWelcome to your secure Neural Mesh. We are here to support your mental wellness.")
+        msg['Subject'] = 'Welcome to Silent Signal'
+        msg['From'] = EMAIL_USER
+        msg['To'] = to_email
+
+        # Connect securely to Gmail's SMTP server
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(EMAIL_USER, EMAIL_PASS)
+            server.send_message(msg)
+            
+        print(f"✅ Welcome email sent successfully to {to_email}")
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
+
+# --- NEW GOOGLE OAUTH ENDPOINT ---
+@app.post("/api/auth/google")
+async def google_auth(request: GoogleAuthRequest):
+    try:
+        # Verify the token against Google's servers
+        request_session = google_requests.Request()
+        id_info = id_token.verify_oauth2_token(
+            request.token, 
+            request_session, 
+            GOOGLE_CLIENT_ID
+        )
+
+        # Extract user data
+        email = id_info.get("email")
+        name = id_info.get("name")
+        
+        # Trigger the welcome email
+        send_welcome_email(email, name)
+
+        # In a real app, you would check the DB here and issue your own JWT
+        return {"success": True, "user": {"name": name, "email": email}}
+        
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- REAL DATASET ENDPOINTS ---
 @app.get("/api/pharmacy")
 def get_pharmacy_inventory():
     if med_df is None:
         return [{"id": 1, "name": "Offline Fallback Med", "price": 10, "tag": "General", "icon": "💊", "desc": "Database not found."}]
     
-    # Grab a random sample of 6 medicines
     sample = med_df.sample(n=6).fillna("Unknown")
     inventory = []
     
@@ -134,7 +195,6 @@ def get_nutrition_database():
     if food_df is None:
         return [{"id": 1, "name": "Offline Fallback Food", "tag": "Food", "icon": "🥗", "desc": "Database not found."}]
     
-    # Grab a random sample of 4 foods
     sample = food_df.sample(n=4).fillna("0")
     nutrition_list = []
     

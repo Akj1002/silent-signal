@@ -5,14 +5,18 @@ import {
   Camera, Home, ArrowRight, CheckCircle, Sparkles,
   Utensils, ShoppingBag, Plus, Video, Music, CreditCard, Smartphone, Banknote,
   Volume2, History, X, ChevronLeft, Star, Settings, Paperclip, Lock, Mail, User, ClipboardList,
-  Download, Cloud, MessageCircle, FileText, Share2, LogOut, Calendar, Clock, Instagram, Linkedin, MicOff
+  Download, Cloud, MessageCircle, FileText, Share2, LogOut, Calendar, Clock, Instagram, Linkedin, MicOff,
+  ArrowUpRight, ShieldCheck, Stethoscope
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import axios from 'axios';
+import { jsPDF } from "jspdf"; 
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'; 
 import './App.css';
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAuth, setShowAuth] = useState(false); // Toggles between Landing Page and Auth Page
   const [user, setUser] = useState({ name: "", email: "" }); 
   const [activeTab, setActiveTab] = useState("home");
   const [showSOS, setShowSOS] = useState(false);
@@ -29,7 +33,17 @@ const App = () => {
   };
 
   if (!isAuthenticated) {
-    return <AuthPage onLogin={(userData) => { setUser(userData); setIsAuthenticated(true); }} />;
+    if (!showAuth) {
+      return <LandingPage onGetStarted={() => setShowAuth(true)} />;
+    }
+    return (
+      <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID}>
+        <AuthPage 
+          onLogin={(userData) => { setUser(userData); setIsAuthenticated(true); }} 
+          onBack={() => setShowAuth(false)}
+        />
+      </GoogleOAuthProvider>
+    );
   }
 
   return (
@@ -37,17 +51,17 @@ const App = () => {
       <Sidebar active={activeTab} set={setActiveTab} setShowSOS={setShowSOS} cartCount={cart.length} />
       
       <main className="pastel-viewport">
-        <Header user={user.name} onLogout={() => { setIsAuthenticated(false); setActiveTab("home"); }} />
+        <Header user={user.name} onLogout={() => { setIsAuthenticated(false); setShowAuth(false); setActiveTab("home"); }} />
         <div className="content-area">
           {activeTab === "home" && <HomePage setTab={setActiveTab} vitals={vitals} user={user.name} />}
           {activeTab === "pacer" && <ReliefPacer onScan={handleScanComplete} />}
           {activeTab === "mesh" && <NeuralMesh vitals={vitals} setTab={setActiveTab} />}
           {activeTab === "dashboard" && <Dashboard vitals={vitals} history={history} />}
           {activeTab === "chat" && <AdvancedDrAI vitals={vitals} user={user.name} />}
-          {activeTab === "experts" && <ExpertNodes setTab={setActiveTab} />}
+          {activeTab === "experts" && <ExpertNodes setTab={setActiveTab} user={user.name} />}
           {activeTab === "consultation" && <ConsultationRoom setTab={setActiveTab} setCart={setCart} cart={cart} vitals={vitals} user={user.name} />}
           {activeTab === "diet" && <DietNode vitals={vitals} />}
-          {activeTab === "pharmacy" && <PharmacyCounter cart={cart} setCart={setCart} />}
+          {activeTab === "pharmacy" && <PharmacyCounter cart={cart} setCart={setCart} user={user.name} />}
           {activeTab === "relief" && <ReliefSection />}
         </div>
       </main>
@@ -56,27 +70,79 @@ const App = () => {
   );
 };
 
-/* --- 1. DYNAMIC AUTHENTICATION PAGE --- */
-const AuthPage = ({ onLogin }) => {
+/* --- 0. BEAUTIFUL LANDING PAGE --- */
+const LandingPage = ({ onGetStarted }) => {
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #fff0f3 0%, #f0f4ff 50%, #f4fbf0 100%)', fontFamily: "'Inter', sans-serif" }}>
+      
+      {/* Navigation */}
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.5)', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.5rem', fontWeight: 'bold', color: '#333' }}>
+          <BrainCircuit color="#FF8FA3" size={32}/> SilentSignal
+        </div>
+        <div>
+          <button onClick={onGetStarted} style={{ background: '#FF8FA3', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(255, 143, 163, 0.4)', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
+            Login Securely
+          </button>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '100px 20px', maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ background: 'rgba(255, 143, 163, 0.15)', color: '#FF8FA3', padding: '8px 20px', borderRadius: '30px', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Sparkles size={16}/> The Future of Mental Healthcare
+        </div>
+        <h1 style={{ fontSize: '4rem', color: '#1a1a1a', lineHeight: '1.1', marginBottom: '25px', fontWeight: '800' }}>
+          The Agentic <span style={{ color: '#FF8FA3' }}>Neural Mesh</span> for Mental Health.
+        </h1>
+        <p style={{ fontSize: '1.2rem', color: '#555', marginBottom: '40px', maxWidth: '700px', lineHeight: '1.6' }}>
+          Non-invasive, zero-touch biometric monitoring using advanced computer vision. Autonomously detecting acute stress and bridging the gap between panic and clinical relief.
+        </p>
+        <button onClick={onGetStarted} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#333', color: 'white', border: 'none', padding: '16px 40px', borderRadius: '40px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 8px 25px rgba(0, 0, 0, 0.2)', transition: 'all 0.3s' }} onMouseOver={e => { e.currentTarget.style.background = '#000'; e.currentTarget.style.transform = 'translateY(-3px)'; }} onMouseOut={e => { e.currentTarget.style.background = '#333'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+          Enter the Sanctuary <ArrowUpRight size={20}/>
+        </button>
+      </div>
+
+      {/* Features Grid */}
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px 100px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px' }}>
+        
+        {/* Feature 1 */}
+        <div style={{ background: 'white', padding: '40px 30px', borderRadius: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.04)', border: '1px solid rgba(255, 143, 163, 0.2)', transition: 'transform 0.3s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-10px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
+          <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: '#fff0f3', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+            <Activity size={30} color="#FF8FA3" />
+          </div>
+          <h3 style={{ fontSize: '1.4rem', color: '#333', marginBottom: '12px' }}>Zero-Touch Scanning</h3>
+          <p style={{ color: '#666', lineHeight: '1.6' }}>Utilizing YOLOv8 and rPPG to extract live heart rate and stress indices straight from facial micro-movements, no wearables required.</p>
+        </div>
+
+        {/* Feature 2 */}
+        <div style={{ background: 'white', padding: '40px 30px', borderRadius: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.04)', border: '1px solid rgba(195, 216, 235, 0.5)', transition: 'transform 0.3s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-10px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
+          <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: '#eef4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+            <Sparkles size={30} color="#5c95ff" />
+          </div>
+          <h3 style={{ fontSize: '1.4rem', color: '#333', marginBottom: '12px' }}>Voice-Enabled Dr. AI</h3>
+          <p style={{ color: '#666', lineHeight: '1.6' }}>An empathetic, context-aware AI agent that actively monitors your vitals. Use hands-free voice dictation during high-anxiety events.</p>
+        </div>
+
+        {/* Feature 3 */}
+        <div style={{ background: 'white', padding: '40px 30px', borderRadius: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.04)', border: '1px solid rgba(198, 224, 180, 0.5)', transition: 'transform 0.3s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-10px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
+          <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: '#f2fceb', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+            <Stethoscope size={30} color="#6db841" />
+          </div>
+          <h3 style={{ fontSize: '1.4rem', color: '#333', marginBottom: '12px' }}>Clinical Integration</h3>
+          <p style={{ color: '#666', lineHeight: '1.6' }}>Instantly export beautifully formatted PDF medical invoices, access neuro-nutrition supplements, and book real-world psychiatric experts.</p>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+/* --- 1. DYNAMIC AUTHENTICATION PAGE (With Google OAuth & Back Button) --- */
+const AuthPage = ({ onLogin, onBack }) => {
   const [mode, setMode] = useState("login");
   const [loading, setLoading] = useState(false);
-  const [pickerType, setPickerType] = useState(null); 
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
-
-  const socialAccounts = {
-    google: [
-      { name: "Abhinav Jha", email: "abhinav.jha@gmail.com", color: "#4285F4" },
-      { name: "Imagine Cup Demo", email: "demo.user@microsoft.com", color: "#34A853" }
-    ],
-    linkedin: [
-      { name: "Abhinav Kumar Jha", email: "abhinav-jha-link", color: "#0077B5", sub: "Software Engineer @SRM" },
-      { name: "Recruiter Account", email: "talent@hiring.com", color: "#0077B5", sub: "Premium Member" }
-    ],
-    instagram: [
-      { name: "abhinav_jha_official", email: "@abhinav_jha", color: "#E4405F" },
-      { name: "silent_signal_project", email: "@silent_signal", color: "#E4405F" }
-    ]
-  };
 
   const handleLocalSubmit = (e) => {
     e.preventDefault();
@@ -88,52 +154,33 @@ const AuthPage = ({ onLogin }) => {
     }, 1000);
   };
 
-  const selectAccount = (acc) => {
+  const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
-    setPickerType(null);
-    setTimeout(() => {
-      onLogin({ name: acc.name, email: acc.email, provider: pickerType });
-      setLoading(false);
-    }, 800);
+    try {
+      // IDEAL SCENARIO: Send token to your backend to trigger Nodemailer
+      // const res = await axios.post('http://localhost:5000/api/auth/google', { token: credentialResponse.credential });
+      // onLogin({ name: res.data.user.name, email: res.data.user.email });
+
+      // Fallback for frontend demo purposes
+      console.log("Google Token Received: ", credentialResponse.credential);
+      onLogin({ name: "Google User", email: "verified@google.com" });
+    } catch (error) {
+      console.error("Google Login Failed", error);
+      alert("Google Authentication Failed.");
+    }
+    setLoading(false);
   };
 
   return (
     <div className="auth-container">
-      {pickerType && (
-        <div className="social-overlay">
-          <div className={`social-picker fade-in ${pickerType}-theme`}>
-            <div className="sp-header">
-              {pickerType === 'google' && <BrainCircuit color="#4285F4" size={30} />}
-              {pickerType === 'linkedin' && <Linkedin color="#0077B5" size={30} fill="#0077B5" />}
-              {pickerType === 'instagram' && <Instagram color="#E4405F" size={30} />}
-              <h3>Sign in with {pickerType.charAt(0).toUpperCase() + pickerType.slice(1)}</h3>
-              <p>Choose an account to link with <span>SilentSignal</span></p>
-            </div>
-            
-            <div className="sp-list">
-              {socialAccounts[pickerType].map((acc, i) => (
-                <div key={i} className="sp-item" onClick={() => selectAccount(acc)}>
-                  <div className="sp-avatar" style={{backgroundColor: acc.color}}>{acc.name[0]}</div>
-                  <div className="sp-info">
-                    <span className="sp-name">{acc.name}</span>
-                    <span className="sp-email">{acc.email}</span>
-                    {acc.sub && <span className="sp-sub">{acc.sub}</span>}
-                  </div>
-                </div>
-              ))}
-              
-              <div className="sp-item use-another" onClick={() => setPickerType(null)}>
-                <div className="sp-avatar" style={{background: '#f1f3f4', color: '#5f6368'}}><User size={20} /></div>
-                <div className="sp-info"><span className="sp-name" style={{color: '#1a73e8'}}>Use another account</span></div>
-              </div>
-            </div>
-            <button className="sp-cancel" onClick={() => setPickerType(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
+      <div className="auth-box fade-in" style={{ position: 'relative' }}>
+        
+        {/* Back to Landing Page Button */}
+        <button onClick={onBack} style={{ position: 'absolute', top: '15px', left: '15px', background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem' }}>
+          <ChevronLeft size={16}/> Back
+        </button>
 
-      <div className="auth-box fade-in">
-        <div className="auth-header">
+        <div className="auth-header" style={{ marginTop: '20px' }}>
           <BrainCircuit size={40} color="#FF8FA3" />
           <h2>SilentSignal</h2>
           <p>Secure Neural Mesh Access</p>
@@ -170,13 +217,17 @@ const AuthPage = ({ onLogin }) => {
 
         <div className="social-login-sect">
           <div className="divider"><span>OR CONTINUE WITH</span></div>
-          <div className="social-icons">
-            <button type="button" onClick={() => setPickerType('google')} className="social-btn google">
-              <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#EA4335" d="M12 5.04c1.9 0 3.51.64 4.85 1.91l3.6-3.6C18.28 1.41 15.38 0 12 0 7.31 0 3.32 2.69 1.38 6.61l4.22 3.27C6.54 7.22 9.04 5.04 12 5.04z"/><path fill="#4285F4" d="M23.49 12.27c0-.8-.07-1.56-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l4.13 3.21c2.41-2.23 3.8-5.52 3.8-9.03z"/><path fill="#FBBC05" d="M5.61 14.53c-.23-.69-.35-1.42-.35-2.18s.13-1.49.35-2.18l-4.22-3.27C.5 8.36 0 10.13 0 12s.5 3.64 1.39 5.29l4.22-3.27z"/><path fill="#34A853" d="M12 24c3.24 0 5.97-1.07 7.96-2.91l-4.13-3.21c-1.1.74-2.51 1.17-3.83 1.17-3.01 0-5.56-2.03-6.47-4.76l-4.22 3.27C3.32 21.31 7.31 24 12 24z"/></svg>
-            </button>
-            <button type="button" onClick={() => setPickerType('linkedin')} className="social-btn linkedin"><Linkedin size={22} fill="#0077B5" color="#0077B5" /></button>
-            <button type="button" onClick={() => setPickerType('instagram')} className="social-btn insta"><Instagram size={22} color="#E4405F" /></button>
+          
+          {/* Official Google OAuth Button */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '15px' }}>
+            <GoogleLogin 
+              onSuccess={handleGoogleSuccess}
+              onError={() => alert('Login Failed')}
+              shape="pill"
+              theme="outline"
+            />
           </div>
+
         </div>
 
         <div className="auth-links">
@@ -199,7 +250,7 @@ const Header = ({ user, onLogout }) => (
   </header> 
 );
 
-/* --- 3. BIOMETRIC SCANNER (With Demo Mode) --- */
+/* --- 3. BIOMETRIC SCANNER --- */
 const ReliefPacer = ({ onScan }) => {
   const videoRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -311,7 +362,7 @@ const handleVoiceInput = (setInput, setIsListening) => {
   recognition.start();
 };
 
-/* --- 5. DR. AI CHAT (With Persistence, Voice & WA UI) --- */
+/* --- 5. DR. AI CHAT --- */
 const AdvancedDrAI = ({ vitals, user }) => {
   const [msgs, setMsgs] = useState(() => {
     const saved = localStorage.getItem("silent_signal_dr_ai");
@@ -398,7 +449,7 @@ const AdvancedDrAI = ({ vitals, user }) => {
   );
 };
 
-/* --- 6. DIET PAGE (Kaggle Dataset Mapping) --- */
+/* --- 6. DIET PAGE --- */
 const DietNode = ({ vitals }) => {
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -416,9 +467,7 @@ const DietNode = ({ vitals }) => {
           }));
           setFoods(realFoods);
           setLoading(false); 
-        } else { 
-          throw new Error("Empty Array"); 
-        }
+        } else { throw new Error("Empty Array"); }
       })
       .catch(err => { 
         setFoods([
@@ -449,38 +498,62 @@ const DietNode = ({ vitals }) => {
   );
 };
 
-/* --- 7. PHARMACY (Kaggle Dataset Mapping + Simple Alert) --- */
-const PharmacyCounter = ({ cart, setCart }) => {
+/* --- 7. NEURO-NUTRITION & SUPPLEMENTS (Upgraded Pharmacy) --- */
+const PharmacyCounter = ({ cart, setCart, user }) => {
   const [view, setView] = useState("shop");
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const total = cart.reduce((acc, item) => acc + item.price, 0);
 
+  const handleExportStorePDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(22);
+    doc.setTextColor(255, 143, 163); 
+    doc.text("Silent Signal", 20, 20);
+    
+    doc.setFontSize(16);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Neuro-Nutrition Order Invoice", 20, 30);
+    doc.line(20, 35, 190, 35); 
+
+    doc.setFontSize(12);
+    doc.text(`Billed To: ${user || 'Guest'}`, 20, 45);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 52);
+    
+    doc.text("Order Summary:", 20, 65);
+    cart.forEach((item, index) => {
+        doc.text(`- ${item.name} ($${item.price})`, 25, 75 + (index * 7));
+    });
+
+    doc.setFontSize(14);
+    doc.text(`Total Amount Paid: $${total}`, 20, 85 + (cart.length * 7));
+
+    doc.save(`SilentSignal_Order_${new Date().getTime()}.pdf`);
+  };
+
   useEffect(() => {
     axios.get('http://localhost:8000/api/pharmacy')
       .then(res => { 
         if(res.data && res.data.length > 0) {
-          const realMeds = res.data.slice(0, 30).map((item, index) => ({
+          const mappedSupplements = res.data.slice(0, 30).map((item, index) => ({
             id: item.id || index,
-            name: item.Drug_Name || item.name || "Medical Product",
-            price: item.Price ? parseFloat(item.Price) : Math.floor(Math.random() * 20) + 5,
-            tag: item.Reason || item.tag || "Treatment",
-            icon: "💊",
-            desc: item.Description || item.desc || "Verified pharmaceutical grade."
+            name: item.Drug_Name || item.name || "Natural Supplement",
+            price: item.Price ? parseFloat(item.Price) : Math.floor(Math.random() * 20) + 10,
+            tag: item.Reason || item.tag || "Wellness",
+            icon: "🌿", 
+            desc: item.Description || item.desc || "Natural, data-backed therapeutic support."
           }));
-          setProducts(realMeds);
+          setProducts(mappedSupplements);
           setLoading(false); 
-        } else { 
-          throw new Error("Empty Array"); 
-        }
+        } else { throw new Error("Empty Array"); }
       })
       .catch(err => { 
         setProducts([
-          { id: 1, name: "Calm Magnesium", price: 15, tag: "Best Seller", icon: "💊", desc: "For deep muscle relaxation and sleep." },
-          { id: 2, name: "Melatonin Sleep", price: 12, tag: "Sleep Aid", icon: "🌙", desc: "Natural sleep cycle support." },
-          { id: 3, name: "Ashwagandha", price: 20, tag: "Ayurveda", icon: "🌿", desc: "Ancient root for severe stress reduction." },
-          { id: 4, name: "Vitamin D3 + K2", price: 10, tag: "Daily", icon: "☀️", desc: "Essential bone and mood health." },
-          { id: 5, name: "Focus Green Tea", price: 8, tag: "Detox", icon: "🍵", desc: "Promotes clarity, detox, and calm focus." }
+          { id: 1, name: "Ashwagandha Root Extract", price: 12, tag: "Ayurveda • Stress Relief", icon: "🌿", desc: "Ancient adaptogen proven to severely reduce cortisol levels and manage daily stress." },
+          { id: 2, name: "Calm Magnesium Glycinate", price: 18, tag: "Mineral • Nervous System", icon: "✨", desc: "Highly absorbable magnesium to calm the nervous system and prevent panic spikes." },
+          { id: 3, name: "L-Theanine & Melatonin", price: 22, tag: "Sleep Aid • Rest", icon: "🌙", desc: "Natural sleep cycle support for deep rest without the morning grogginess." },
+          { id: 4, name: "Vitamin D3 + K2 Drop", price: 15, tag: "Daily Support", icon: "☀️", desc: "Essential for bone health and regulating mood fluctuations." },
+          { id: 5, name: "Focus Green Tea Matcha", price: 25, tag: "Detox • Clarity", icon: "🍵", desc: "Promotes clarity, detox, and calm focus without caffeine jitters." }
         ]); setLoading(false); 
       });
   }, []);
@@ -489,15 +562,27 @@ const PharmacyCounter = ({ cart, setCart }) => {
     <div className="pharmacy-layout fade-in">
       {view === "shop" ? (
         <>
-          <div className="shop-head">
-            <div><h2>Live Pharmaceutical Database</h2><p style={{color:'#888', marginTop:'5px'}}>Sourced from Kaggle Medical Dataset</p></div>
+          <div className="shop-head" style={{ marginBottom: '25px', paddingBottom: '15px', borderBottom: '1px solid #eee' }}>
+            <div>
+              <h2 style={{ fontSize: '1.8rem', color: '#333' }}>Neuro-Nutrition & Supplements</h2>
+              <p style={{ color: '#888', marginTop: '5px' }}>Natural, data-backed therapeutic support for your autonomic nervous system.</p>
+            </div>
             <button className="cart-chip" onClick={()=>setView("checkout")}><ShoppingBag size={18}/> <span>{cart.length} Items</span></button>
           </div>
-          {loading ? <p>Loading Kaggle Medicines...</p> : (
-            <div className="prod-grid">
+          {loading ? <p>Loading Supplements...</p> : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
               {products.map(p => (
-                <div key={p.id} className="prod-card"><span className="p-tag">{p.tag}</span><div className="p-icon">{p.icon}</div>
-                  <div className="p-info"><h3>{p.name}</h3><p className="prod-desc">{p.desc}</p><div className="p-action"><b>${p.price}</b><button onClick={() => setCart([...cart, p])}>Add</button></div></div>
+                <div key={p.id} style={{ background: 'white', borderRadius: '15px', padding: '20px', border: '1px solid #f0f0f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                    <span style={{ fontSize: '2rem' }}>{p.icon}</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#FF8FA3', background: '#fff0f3', padding: '4px 10px', borderRadius: '20px' }}>{p.tag}</span>
+                  </div>
+                  <h3 style={{ fontSize: '1.2rem', marginBottom: '8px', color: '#333' }}>{p.name}</h3>
+                  <p style={{ fontSize: '0.85rem', color: '#666', minHeight: '40px', marginBottom: '15px' }}>{p.desc}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+                    <b style={{ fontSize: '1.3rem', color: '#333' }}>${p.price}</b>
+                    <button style={{ background: '#FF8FA3', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setCart([...cart, p])}>Add to Cart</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -505,7 +590,7 @@ const PharmacyCounter = ({ cart, setCart }) => {
         </>
       ) : view === "checkout" ? (
         <div className="checkout-layout">
-          <button className="back-btn" onClick={()=>setView("shop")}>Back to Store</button>
+          <button className="back-btn" onClick={()=>setView("shop")}>Back to Supplements</button>
           <div className="checkout-split">
             <div className="order-summary">
               <h3>Order Summary</h3>
@@ -523,7 +608,7 @@ const PharmacyCounter = ({ cart, setCart }) => {
           <CheckCircle size={80} color="#4CAF50" className="bounce"/><h2>Order Placed Successfully!</h2><p>Your wellness products will be delivered soon.</p>
           <div className="success-actions">
              <button className="primary-action-btn" onClick={() => { setCart([]); setView("shop"); }}>Continue Shopping</button>
-             <button className="secondary-action-btn" onClick={() => alert("Downloading Pharmacy Invoice PDF...")}><Download size={18}/> Download Bill</button>
+             <button className="secondary-action-btn" onClick={handleExportStorePDF}><Download size={18}/> Download Invoice</button>
           </div>
         </div>
       )}
@@ -831,7 +916,7 @@ const ReliefSection = () => {
   );
 };
 
-/* --- 9. CONSULTATION (With Simple Alert logic for PDF) --- */
+/* --- 9. CONSULTATION (With PDF Implementation) --- */
 const SOSOverlay = ({ vitals, close }) => (
   <div className="sos-overlay"><div className="sos-box"><div className="sos-header"><ShieldAlert size={60} color="#FF0000"/><h2>EMERGENCY ALERT</h2></div><div className="qr-frame"><QRCodeSVG value={`SOS | HR:${vitals.hr}`} size={160} fgColor="#FF0000"/></div><button className="dismiss-btn" onClick={close}>Dismiss</button></div></div>
 );
@@ -862,12 +947,37 @@ const ConsultationRoom = ({ setTab, cart, setCart, vitals, user }) => {
         let reply = "I understand. I am updating your file to ensure you get the right care.";
         const lowerInput = userText.toLowerCase();
         if (lowerInput.includes("headache") || lowerInput.includes("pain")) reply = "I'm sorry you're experiencing pain. Let's add a mild analgesic and monitor your stress triggers.";
-        else if (lowerInput.includes("sleep") || lowerInput.includes("tired")) reply = "Sleep deprivation heavily impacts anxiety. I'm adding Melatonin from our pharmacy to your prescription.";
+        else if (lowerInput.includes("sleep") || lowerInput.includes("tired")) reply = "Sleep deprivation heavily impacts anxiety. I'm adding Melatonin from our supplements to your prescription.";
         else if (lowerInput.includes("stress") || lowerInput.includes("anxious") || lowerInput.includes("panic")) reply = "Your vitals confirm an elevated stress response. I strongly recommend the Calm Magnesium and 10 minutes in the Relief Sanctuary.";
         
         setMessages(prev => [...prev, { sender: "Dr. Kavita", text: reply, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]); 
       }, 1500);
     } finally { setIsTyping(false); }
+  };
+
+  const handleExportConsultationPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(22);
+    doc.setTextColor(255, 143, 163); 
+    doc.text("Silent Signal", 20, 20);
+    
+    doc.setFontSize(16);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Official Clinical Report & Vitals", 20, 30);
+    doc.line(20, 35, 190, 35); 
+
+    doc.setFontSize(12);
+    doc.text(`Patient Name: ${user || 'Guest'}`, 20, 45);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 52);
+    
+    doc.text(`Recorded Heart Rate: ${vitals?.hr || '--'} BPM`, 20, 65);
+    doc.text(`Stress Index: ${vitals?.anxiety || '--'}%`, 20, 72);
+    doc.text(`Status: ${vitals?.status || 'Pending'}`, 20, 79);
+
+    doc.text("Recommended Therapeutic Supplements:", 20, 95);
+    doc.text("- Calm Magnesium (1 Tablet/Night)", 25, 105);
+
+    doc.save(`${user || 'Patient'}_Medical_Report.pdf`);
   };
 
   const handleExportWhatsApp = () => { 
@@ -914,13 +1024,13 @@ const ConsultationRoom = ({ setTab, cart, setCart, vitals, user }) => {
 
       <div className="prescription-panel">
         <div className="rx-header"><ClipboardList size={24}/> <h3>Official e-Prescription</h3></div>
-        <h4>Prescribed Medications</h4>
-        <div className="rx-item"><div><b>Calm Magnesium</b></div><button onClick={() => { setCart([...cart, { id: 101, name: "Calm Magnesium", price: 15 }]); setTab("pharmacy"); }}>Buy in Pharmacy</button></div>
+        <h4>Prescribed Interventions</h4>
+        <div className="rx-item"><div><b>Calm Magnesium</b></div><button onClick={() => { setCart([...cart, { id: 101, name: "Calm Magnesium", price: 15 }]); setTab("pharmacy"); }}>Buy in Store</button></div>
         <div className="export-section">
           <h4><Share2 size={16}/> Export Medical Records</h4>
           <p>Download or share your AI scanner vitals & prescriptions.</p>
           <div className="export-grid">
-            <button onClick={() => alert("Downloading PDF Report...")}><FileText size={18} color="#E53935"/> PDF</button>
+            <button onClick={handleExportConsultationPDF}><FileText size={18} color="#E53935"/> PDF</button>
             <button onClick={handleDriveUpload} style={{color: driveStatus.includes("✓") ? "#4CAF50" : "#555"}}><Cloud size={18} color={driveStatus.includes("✓") ? "#4CAF50" : "#1976D2"}/> {driveStatus}</button>
             <button className="wa-btn" onClick={handleExportWhatsApp}><MessageCircle size={18} color="#25D366"/> WhatsApp</button>
             <button onClick={handleExportEmail}><Mail size={18} color="#FB8C00"/> Email</button>
@@ -931,8 +1041,8 @@ const ConsultationRoom = ({ setTab, cart, setCart, vitals, user }) => {
   );
 };
 
-/* --- 10. EXPERTS BOOKING PAGE (With Simple Alert logic for PDF) --- */
-const ExpertNodes = ({ setTab }) => {
+/* --- 10. EXPERTS BOOKING PAGE --- */
+const ExpertNodes = ({ setTab, user }) => {
   const [view, setView] = useState("list"); 
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [date, setDate] = useState("");
@@ -944,6 +1054,33 @@ const ExpertNodes = ({ setTab }) => {
     { id: 4, name: "Dr. Amit Patel", role: "Ayurvedic Specialist", exp: "10 Yrs", fee: 30, rating: "4.7", color: "tan", tags: ["Holistic", "Stress"], availability: "Next Slot: Wed" },
     { id: 5, name: "Dr. Emily Chen", role: "Behavioral Coach", exp: "6 Yrs", fee: 45, rating: "4.9", color: "purple", tags: ["Sleep", "Habits"], availability: "Available Today" }
   ];
+
+  const handleExportBookingPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(22);
+    doc.setTextColor(255, 143, 163); 
+    doc.text("Silent Signal", 20, 20);
+    
+    doc.setFontSize(16);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Medical Appointment Invoice", 20, 30);
+    doc.line(20, 35, 190, 35); 
+
+    doc.setFontSize(12);
+    doc.text(`Patient Name: ${user || 'Guest'}`, 20, 45);
+    doc.text(`Date of Booking: ${new Date().toLocaleDateString()}`, 20, 52);
+    
+    doc.text(`Doctor: ${selectedDoc.name}`, 20, 65);
+    doc.text(`Specialization: ${selectedDoc.role}`, 20, 72);
+    doc.text(`Appointment Date: ${date}`, 20, 79);
+
+    doc.text(`Consultation Fee: $${selectedDoc.fee.toFixed(2)}`, 20, 95);
+    doc.text(`Platform Fee: $2.00`, 20, 102);
+    doc.setFontSize(14);
+    doc.text(`Total Amount Paid: $${(selectedDoc.fee + 2).toFixed(2)}`, 20, 115);
+
+    doc.save(`SilentSignal_Appointment_${selectedDoc.name.replace(/\s+/g, '')}.pdf`);
+  };
 
   return (
     <div className="experts-layout fade-in">
@@ -1005,8 +1142,8 @@ const ExpertNodes = ({ setTab }) => {
           <p>Your appointment is scheduled for {date}.</p>
           <div className="success-actions">
              <button className="primary-action-btn" onClick={() => setTab("consultation")}>Join Consultation</button>
-             <button className="secondary-action-btn" onClick={() => alert("Downloading Consultation Invoice PDF...")}>
-               <Download size={18}/> Download Bill
+             <button className="secondary-action-btn" onClick={handleExportBookingPDF}>
+               <Download size={18}/> Download Invoice
              </button>
           </div>
         </div> 
@@ -1019,7 +1156,7 @@ const Sidebar = ({ active, set, setShowSOS, cartCount }) => (
   <aside className="pastel-sidebar">
     <div className="brand"><BrainCircuit color="#FF8FA3" size={30}/> SilentSignal</div>
     <nav>
-      {[{id:'home',l:'Home',i:<Home/>},{id:'pacer',l:'Scanner',i:<Camera/>},{id:'mesh',l:'Neural Mesh',i:<Activity/>},{id:'chat',l:'Dr. AI Chat',i:<Sparkles/>},{id:'dashboard',l:'Dashboard',i:<LayoutDashboard/>},{id:'experts',l:'Doctors',i:<Users/>},{id:'consultation',l:'Active Chat',i:<Video/>},{id:'pharmacy',l:'Pharmacy',i:<ShoppingBag/>,c:cartCount},{id:'diet',l:'Nutrition',i:<Utensils/>},{id:'relief',l:'Sanctuary',i:<Music/>}].map(item=>( <button key={item.id} className={active===item.id?'active':''} onClick={()=>set(item.id)}>{item.i} <span>{item.l}</span> {item.c>0&&<span className="badge">{item.c}</span>}</button> ))}
+      {[{id:'home',l:'Home',i:<Home/>},{id:'pacer',l:'Scanner',i:<Camera/>},{id:'mesh',l:'Neural Mesh',i:<Activity/>},{id:'chat',l:'Dr. AI Chat',i:<Sparkles/>},{id:'dashboard',l:'Dashboard',i:<LayoutDashboard/>},{id:'experts',l:'Doctors',i:<Users/>},{id:'consultation',l:'Active Chat',i:<Video/>},{id:'pharmacy',l:'Store',i:<ShoppingBag/>,c:cartCount},{id:'diet',l:'Nutrition',i:<Utensils/>},{id:'relief',l:'Sanctuary',i:<Music/>}].map(item=>( <button key={item.id} className={active===item.id?'active':''} onClick={()=>set(item.id)}>{item.i} <span>{item.l}</span> {item.c>0&&<span className="badge">{item.c}</span>}</button> ))}
     </nav>
     <button className="sos-btn" onClick={()=>setShowSOS(true)}><ShieldAlert/> SOS</button>
   </aside>

@@ -2,7 +2,9 @@
   "name": "silent-signals",
   "version": "1.0.0",
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "axios": "^1.14.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.294.0",
     "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
